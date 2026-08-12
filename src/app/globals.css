@@ -1,0 +1,262 @@
+@import "tailwindcss";
+
+/* ────────────────────────────────────────────────────────────
+   KODEO DESIGN SYSTEM
+   Dark, developer-focused. Not a generic Shadcn template.
+   Fonts: Inter (UI) + JetBrains Mono (code/technical)
+   ──────────────────────────────────────────────────────────── */
+
+@theme {
+  /* ---------- Core surfaces ---------- */
+  --color-bg: #0a0a0a;
+  --color-bg-elevated: #0d0d0d;
+  --color-surface: #111111;
+  --color-surface-hover: #161616;
+  --color-surface-active: #1a1a1a;
+  --color-border: #242424;
+  --color-border-strong: #333333;
+
+  /* ---------- Text ---------- */
+  --color-primary: #ffffff;
+  --color-secondary: #a1a1aa;
+  --color-tertiary: #6b6b70;
+  --color-disabled: #47474a;
+
+  /* ---------- Accent — KODEO lime ---------- */
+  --color-accent: #d7fb43;
+  --color-accent-hover: #e4ff6b;
+  --color-accent-active: #c2e832;
+  --color-accent-muted: #7d8a3f;
+  --color-accent-dim: #3a4022;
+
+  /* ---------- Semantic ---------- */
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+  --color-danger-hover: #fca5a5;
+  --color-info: #60a5fa;
+
+  /* ---------- Fonts ---------- */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* ---------- Radius ---------- */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
+  --radius-full: 999px;
+
+  /* ---------- Shadows ---------- */
+  --shadow-glow-sm: 0 0 20px -4px rgba(215, 251, 67, 0.25);
+  --shadow-glow-md: 0 0 40px -8px rgba(215, 251, 67, 0.3);
+  --shadow-elevated: 0 8px 30px -8px rgba(0, 0, 0, 0.6);
+  --shadow-card: 0 4px 24px -6px rgba(0, 0, 0, 0.5);
+
+  /* ---------- Easing ---------- */
+  --ease-kodeo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---------- Breakpoints (Tailwind v4 theme keys) ---------- */
+  --breakpoint-xs: 420px;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+}
+
+/* ────────────────────────────────────────────────────────────
+   THEME OVERRIDE HOOKS (Part 1c wires 20 themes onto these
+   same variable names via [data-theme="..."] on <html>).
+   Keeping the token names stable now means the whole app
+   reads from CSS variables, so switching data-theme later
+   repaints everything without touching component code.
+   ──────────────────────────────────────────────────────────── */
+:root {
+  color-scheme: dark;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+/* ---------- Scrollbar ---------- */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-bg);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-secondary);
+}
+
+/* ---------- Selection ---------- */
+::selection {
+  background: var(--color-accent);
+  color: #08090a;
+}
+
+/* ---------- Focus ring, accessible + on-brand ---------- */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+/* ────────────────────────────────────────────────────────────
+   REUSABLE UTILITY LAYERS
+   ──────────────────────────────────────────────────────────── */
+@layer utilities {
+  .font-mono-tech {
+    font-family: var(--font-mono);
+    font-feature-settings: "liga" 1, "calt" 1;
+  }
+
+  .text-gradient-accent {
+    background: linear-gradient(180deg, #ffffff 0%, #eaffb0 140%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+
+  .bg-noise {
+    position: relative;
+  }
+  .bg-noise::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .glass {
+    background: rgba(17, 17, 17, 0.6);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+  }
+
+  .glow-border {
+    box-shadow:
+      0 0 0 1px var(--color-border),
+      var(--shadow-glow-sm);
+  }
+
+  .kodeo-diamond {
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  }
+
+  .skew-fix {
+    transform: translateZ(0);
+  }
+}
+
+/* ────────────────────────────────────────────────────────────
+   KEYFRAME ANIMATIONS
+   ──────────────────────────────────────────────────────────── */
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-14px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes rotate-diamond {
+  0%, 100% { transform: rotate(45deg) scale(1); }
+  50% { transform: rotate(45deg) scale(1.06); }
+}
+
+@keyframes blink-caret {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-float-slow { animation: float-slow 6s var(--ease-kodeo) infinite; }
+.animate-pulse-glow { animation: pulse-glow 3s ease-in-out infinite; }
+.animate-fade-up { animation: fade-up 0.7s var(--ease-kodeo) both; }
+.animate-fade-in { animation: fade-in 0.6s var(--ease-kodeo) both; }
+.animate-scale-in { animation: scale-in 0.4s var(--ease-kodeo) both; }
+.animate-marquee { animation: marquee 28s linear infinite; }
+.animate-spin-slow { animation: spin-slow 12s linear infinite; }
+.animate-blink-caret { animation: blink-caret 1s step-end infinite; }
+
+.animate-delay-1 { animation-delay: 0.08s; }
+.animate-delay-2 { animation-delay: 0.16s; }
+.animate-delay-3 { animation-delay: 0.24s; }
+.animate-delay-4 { animation-delay: 0.32s; }
+.animate-delay-5 { animation-delay: 0.4s; }
+.animate-delay-6 { animation-delay: 0.48s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
