@@ -8,7 +8,8 @@ interface LogoMarkProps {
 
 /**
  * The KODEO diamond mark — four diamonds arranged in a cross,
- * top + bottom lime, left + right muted olive.
+ * top + bottom lime, left + right muted olive, each with a visible
+ * gap between them (they do not touch at the center).
  * Matches the uploaded brand image exactly.
  */
 export function LogoMark({ className, size = 28 }: LogoMarkProps) {
@@ -24,43 +25,43 @@ export function LogoMark({ className, size = 28 }: LogoMarkProps) {
     >
       {/* top */}
       <rect
-        x="50"
-        y="4"
-        width="34"
-        height="34"
-        rx="4"
-        transform="rotate(45 50 21)"
+        x="34"
+        y="14"
+        width="26"
+        height="26"
+        rx="2.5"
+        transform="rotate(45 47 27)"
         fill="#D7FB43"
       />
       {/* bottom */}
       <rect
-        x="50"
-        y="62"
-        width="34"
-        height="34"
-        rx="4"
-        transform="rotate(45 50 79)"
+        x="34"
+        y="60"
+        width="26"
+        height="26"
+        rx="2.5"
+        transform="rotate(45 47 73)"
         fill="#D7FB43"
       />
       {/* left */}
       <rect
-        x="21"
-        y="33"
-        width="34"
-        height="34"
-        rx="4"
-        transform="rotate(45 21 50)"
+        x="10"
+        y="37"
+        width="26"
+        height="26"
+        rx="2.5"
+        transform="rotate(45 23 50)"
         fill="#6E7259"
         fillOpacity="0.85"
       />
       {/* right */}
       <rect
-        x="79"
-        y="33"
-        width="34"
-        height="34"
-        rx="4"
-        transform="rotate(45 79 50)"
+        x="58"
+        y="37"
+        width="26"
+        height="26"
+        rx="2.5"
+        transform="rotate(45 71 50)"
         fill="#6E7259"
         fillOpacity="0.85"
       />
