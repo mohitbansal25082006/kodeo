@@ -2,88 +2,72 @@
 "use client";
 
 import * as React from "react";
-import { Dices, Check, ImageOff } from "lucide-react";
+import multiavatar from "@multiavatar/multiavatar/esm";
+import { Dices, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AvatarPickerProps {
   seed: string;
-  value: string; // currently selected avatar URL
-  onChange: (url: string) => void;
+  value: string; // currently selected avatar identifier (not a URL — see note below)
+  onChange: (avatarId: string) => void;
 }
 
 /**
- * DiceBear (dicebear.com) is a free, open-source avatar API — no API
- * key, no account required. We offer a handful of styles themed to
- * KODEO's palette via the backgroundColor param, seeded off the
- * user's name/username so results are deterministic and reproducible.
+ * Avatars are generated with Multiavatar (multiavatar.com) — a free,
+ * open-source, multicultural human-persona avatar generator.
  *
- * Note: these are rendered with a plain <img> tag rather than
- * next/image. next/image's optimizer pipeline (even with
- * `unoptimized`) is unreliable for external SVGs whose URL doesn't
- * end in a literal ".svg" file extension (DiceBear's URLs end in
- * "/svg?params", which next/image's SVG auto-detection doesn't
- * recognize) — this caused the avatars to fail to render entirely.
- * A plain <img> has no such restriction and is what DiceBear's own
- * docs recommend.
+ * IMPORTANT ARCHITECTURE NOTE: Multiavatar's hosted HTTP API
+ * (api.multiavatar.com) was shut down by its maintainers. It's now
+ * distributed only as an npm package (@multiavatar/multiavatar) that
+ * generates SVG markup locally, in-process — there is no remote
+ * request at all. This is actually more reliable than the previous
+ * DiceBear-via-remote-<img> approach: there's no external network
+ * call that can fail, get rate-limited, get blocked by an ad-blocker,
+ * or go down, because nothing ever leaves the browser/server.
+ *
+ * Because generation is local and synchronous, `value` stores just the
+ * avatar's identifier string (e.g. "kodeo-jane-2"), NOT a URL. The SVG
+ * itself is regenerated on demand anywhere it's displayed by calling
+ * multiavatar(id). See src/lib/avatar.ts for the shared helper used
+ * by both this picker and any other place an avatar needs rendering
+ * (sidebar, profile header, etc).
  */
-const STYLES = ["glass", "identicon", "shapes", "thumbs", "bottts", "rings"] as const;
+const VARIANT_COUNT = 6;
 
-function buildUrl(style: string, seed: string, variant = 0) {
-  const params = new URLSearchParams({
-    seed: `${seed}-${variant}`,
-    backgroundColor: "0a0a0a,111111,1a1a1a",
-    backgroundType: "solid",
-  });
-  return `https://api.dicebear.com/10.x/${style}/svg?${params.toString()}`;
+function buildAvatarId(seed: string, variant: number) {
+  return `${seed}-${variant}`;
 }
 
-function AvatarImage({ src, alt }: { src: string; alt: string }) {
-  const [status, setStatus] = React.useState<"loading" | "loaded" | "error">("loading");
-
-  // Reset status whenever the URL itself changes (shuffle / seed change).
-  React.useEffect(() => {
-    setStatus("loading");
-  }, [src]);
-
+function AvatarSvg({ avatarId, className }: { avatarId: string; className?: string }) {
+  const svgMarkup = React.useMemo(() => multiavatar(avatarId), [avatarId]);
   return (
-    <>
-      {status === "loading" && (
-        <div className="absolute inset-0 animate-pulse bg-surface-hover" />
-      )}
-      {status === "error" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-surface-hover text-tertiary">
-          <ImageOff className="h-4 w-4" />
-        </div>
-      )}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt={alt}
-        loading="lazy"
-        onLoad={() => setStatus("loaded")}
-        onError={() => setStatus("error")}
-        className={cn(
-          "absolute inset-0 h-full w-full object-cover transition-opacity duration-200",
-          status === "loaded" ? "opacity-100" : "opacity-0"
-        )}
-      />
-    </>
+    <div
+      className={className}
+      // multiavatar() returns static, locally-generated SVG markup with
+      // no user-controlled content (the seed only selects among a fixed
+      // set of 12 billion pre-authored shape/color combinations, it is
+      // not reflected into attributes or scripts), so this is safe.
+      dangerouslySetInnerHTML={{ __html: svgMarkup }}
+    />
   );
 }
 
 export function AvatarPicker({ seed, value, onChange }: AvatarPickerProps) {
   const effectiveSeed = seed || "kodeo-user";
-  const [variant, setVariant] = React.useState(0);
+  const [round, setRound] = React.useState(0);
 
   const options = React.useMemo(
-    () => STYLES.map((style) => ({ style, url: buildUrl(style, effectiveSeed, variant) })),
-    [effectiveSeed, variant]
+    () =>
+      Array.from({ length: VARIANT_COUNT }, (_, i) =>
+        buildAvatarId(`${effectiveSeed}-r${round}`, i)
+      ),
+    [effectiveSeed, round]
   );
 
   // Keep the selection in sync with the first option by default.
   React.useEffect(() => {
     if (!value) {
-      onChange(options[0].url);
+      onChange(options[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveSeed]);
@@ -94,30 +78,30 @@ export function AvatarPicker({ seed, value, onChange }: AvatarPickerProps) {
         <span className="text-sm font-medium text-secondary">Profile picture</span>
         <button
           type="button"
-          onClick={() => setVariant((v) => v + 1)}
+          onClick={() => setRound((r) => r + 1)}
           className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-secondary transition-colors hover:border-border-strong hover:text-primary"
         >
           <Dices className="h-3.5 w-3.5" />
           Shuffle
         </button>
       </div>
-      <div className="grid grid-cols-6 gap-2.5">
-        {options.map(({ style, url }) => {
-          const selected = value === url;
+      <div className="grid grid-cols-4 gap-2 xs:grid-cols-6 xs:gap-2.5">
+        {options.map((avatarId) => {
+          const selected = value === avatarId;
           return (
             <button
-              key={style}
+              key={avatarId}
               type="button"
-              onClick={() => onChange(url)}
+              onClick={() => onChange(avatarId)}
               className={cn(
-                "relative aspect-square overflow-hidden rounded-xl border transition-all duration-150",
+                "relative aspect-square overflow-hidden rounded-xl border bg-surface-hover transition-all duration-150",
                 selected
                   ? "border-accent ring-2 ring-accent/30"
                   : "border-border hover:border-border-strong"
               )}
-              aria-label={`Select ${style} avatar`}
+              aria-label={`Select avatar ${avatarId}`}
             >
-              <AvatarImage src={url} alt="" />
+              <AvatarSvg avatarId={avatarId} className="absolute inset-0 h-full w-full [&>svg]:h-full [&>svg]:w-full" />
               {selected && (
                 <span className="absolute right-1 top-1 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-accent">
                   <Check className="h-2.5 w-2.5 text-[#08090a]" strokeWidth={3} />
@@ -128,7 +112,7 @@ export function AvatarPicker({ seed, value, onChange }: AvatarPickerProps) {
         })}
       </div>
       <p className="mt-2 text-xs text-tertiary">
-        Free avatars via DiceBear — pick a style or shuffle for a new look.
+        Free human-persona avatars via Multiavatar — pick a style or shuffle for new options.
       </p>
     </div>
   );

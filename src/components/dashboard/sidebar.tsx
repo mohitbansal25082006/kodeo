@@ -15,6 +15,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
 
 interface SidebarProps {
@@ -137,14 +138,7 @@ export function Sidebar({ user, onNavigate }: SidebarProps) {
           className="flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-surface"
         >
           <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full bg-surface">
-            {user.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.image} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-xs font-bold text-secondary">
-                {user.name?.[0]?.toUpperCase() || "K"}
-              </div>
-            )}
+            <UserAvatar image={user.image} name={user.name} />
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium text-primary">{user.name}</div>

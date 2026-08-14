@@ -85,7 +85,7 @@ export default function ProfilePage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <SettingsSection
           title="Profile picture"
-          description="Choose an avatar style — free, generated instantly by DiceBear."
+          description="Choose an avatar style — free, generated instantly by Multiavatar."
         >
           <AvatarPicker seed={username || name} value={avatar} onChange={setAvatar} />
         </SettingsSection>

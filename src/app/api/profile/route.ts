@@ -12,7 +12,9 @@ const profileSchema = z.object({
     .max(24, "Username must be at most 24 characters.")
     .regex(/^[a-z0-9_-]+$/i, "Only letters, numbers, hyphens, and underscores allowed."),
   developerRole: z.string().min(1),
-  image: z.string().url().optional(),
+  // See src/lib/avatar.ts — this can be a Multiavatar seed identifier
+  // or a real OAuth photo URL, so it isn't validated as a URL.
+  image: z.string().min(1).max(200).optional(),
 });
 
 export async function POST(request: NextRequest) {

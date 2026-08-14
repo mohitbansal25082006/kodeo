@@ -11,7 +11,12 @@ const onboardingSchema = z.object({
     .max(24, "Username must be at most 24 characters.")
     .regex(/^[a-z0-9_-]+$/i, "Only letters, numbers, hyphens, and underscores allowed."),
   developerRole: z.string().min(1, "Please select a role."),
-  image: z.string().url().optional(),
+  // Can be either a Multiavatar seed identifier (e.g. "jane-r0-3") from
+  // the avatar picker, or a real photo URL from Google/GitHub OAuth —
+  // see src/lib/avatar.ts for how these two shapes are told apart when
+  // rendering. Deliberately NOT validated as a URL here since the seed
+  // form isn't one; length-capped instead as a sanity bound.
+  image: z.string().min(1).max(200).optional(),
 });
 
 export async function POST(request: NextRequest) {
