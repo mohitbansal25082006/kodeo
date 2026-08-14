@@ -5,6 +5,60 @@ import { Pool } from "pg";
 import { sendOtpEmail, sendWelcomeEmail, sendAccountDeletionEmail } from "@/lib/email";
 
 /**
+ * Strip a single trailing slash from a URL. Better Auth compares
+ * baseURL/trustedOrigins against the browser's `Origin` header using
+ * exact string matching, and browsers never send a trailing slash
+ * (e.g. "https://www.kodeo.website", never ".../"). A value like
+ * "https://www.kodeo.website/" in AUTH_URL or NEXT_PUBLIC_APP_URL will
+ * silently fail to match anything and every request gets rejected as
+ * an untrusted origin — this was the cause of auth being completely
+ * broken in production.
+ */
+function stripTrailingSlash(url: string | undefined): string | undefined {
+  if (!url) return url;
+  return url.endsWith("/") ? url.slice(0, -1) : url;
+}
+
+const appUrl = stripTrailingSlash(process.env.NEXT_PUBLIC_APP_URL);
+const authUrl = stripTrailingSlash(process.env.AUTH_URL) || appUrl;
+
+/**
+ * Build the trusted origins list. In production this needs BOTH the
+ * www and bare-domain forms if the site is reachable at either (Vercel/
+ * most hosts serve both by default, with one redirecting to the other,
+ * but the redirect happens after the browser has already sent its
+ * Origin header, so both must be trusted). Local dev origins are
+ * always included too so `npm run dev` keeps working after this change.
+ */
+function buildTrustedOrigins(): string[] {
+  const origins = new Set<string>();
+
+  if (authUrl) origins.add(authUrl);
+  if (appUrl) origins.add(appUrl);
+
+  // If the configured URL uses "www.", also trust the bare domain,
+  // and vice versa — covers whichever one the browser actually used.
+  for (const url of [authUrl, appUrl]) {
+    if (!url) continue;
+    try {
+      const u = new URL(url);
+      if (u.hostname.startsWith("www.")) {
+        origins.add(`${u.protocol}//${u.hostname.slice(4)}`);
+      } else {
+        origins.add(`${u.protocol}//www.${u.hostname}`);
+      }
+    } catch {
+      // malformed URL in env var — skip, don't crash startup over it
+    }
+  }
+
+  origins.add("http://localhost:3000");
+  origins.add("http://127.0.0.1:3000");
+
+  return Array.from(origins);
+}
+
+/**
  * Better Auth server instance.
  *
  * Database: raw `pg` Pool against Neon Postgres — no ORM. Better Auth
@@ -20,8 +74,9 @@ import { sendOtpEmail, sendWelcomeEmail, sendAccountDeletionEmail } from "@/lib/
  */
 export const auth = betterAuth({
   appName: "KODEO",
-  baseURL: process.env.AUTH_URL || process.env.NEXT_PUBLIC_APP_URL,
+  baseURL: authUrl,
   secret: process.env.AUTH_SECRET,
+  trustedOrigins: buildTrustedOrigins(),
 
   database: new Pool({
     connectionString: process.env.DATABASE_URL,

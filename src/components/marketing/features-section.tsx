@@ -50,7 +50,7 @@ const FEATURES = [
 export function FeaturesSection() {
   return (
     <section id="workflow" className="relative py-20 lg:py-28">
-      <div className="mx-auto max-w-7xl px-5 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 xs:px-5 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
           <div className="text-xs font-bold uppercase tracking-[0.15em] text-tertiary">
             Why KODEO

@@ -54,6 +54,19 @@ export function EditorMockup() {
   const [visibleLines, setVisibleLines] = React.useState(0);
 
   React.useEffect(() => {
+    // Respect prefers-reduced-motion: skip straight to the finished
+    // state instead of running 14 sequential re-renders. The global
+    // CSS rule in globals.css handles keyframe animations but has no
+    // effect on this component's own JS-driven setTimeout loop.
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReducedMotion) {
+      setVisibleLines(CODE_LINES.length);
+      return;
+    }
+
     if (visibleLines >= CODE_LINES.length) return;
     const t = setTimeout(() => setVisibleLines((v) => v + 1), 90);
     return () => clearTimeout(t);
@@ -129,9 +142,9 @@ export function EditorMockup() {
               saved
             </div>
           </div>
-          <div className="flex-1 overflow-hidden p-4 font-mono-tech text-[12.5px] leading-[1.65]">
+          <div className="flex-1 overflow-x-auto overflow-y-hidden p-3 font-mono-tech text-[11px] leading-[1.6] xs:p-4 xs:text-[12.5px] xs:leading-[1.65]">
             {CODE_LINES.slice(0, visibleLines).map((line) => (
-              <div key={line.n} className="flex">
+              <div key={line.n} className="flex w-max min-w-full">
                 <span className="w-6 shrink-0 select-none text-right pr-3 text-tertiary/60">
                   {line.n}
                 </span>
@@ -148,15 +161,15 @@ export function EditorMockup() {
               </div>
             ))}
           </div>
-          <div className="border-t border-border bg-bg-elevated px-4 py-2.5 font-mono-tech text-[11px] text-secondary">
-            <div className="flex items-center gap-1.5 text-tertiary">
+          <div className="overflow-x-auto border-t border-border bg-bg-elevated px-4 py-2.5 font-mono-tech text-[11px] text-secondary">
+            <div className="flex items-center gap-1.5 whitespace-nowrap text-tertiary">
               <span className="text-accent">❯</span> kodeo ~/kodeo-app{" "}
               <span className="text-primary">$ pnpm dev</span>
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-success">
+            <div className="mt-1 flex items-center gap-1.5 whitespace-nowrap text-success">
               ✓ Ready in 412ms
             </div>
-            <div className="text-tertiary">○ Local: http://localhost:3000</div>
+            <div className="whitespace-nowrap text-tertiary">○ Local: http://localhost:3000</div>
           </div>
         </div>
 

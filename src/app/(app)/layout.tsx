@@ -2,7 +2,6 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { ThemeProvider } from "@/lib/themes/theme-provider";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 
 export default async function AppLayout({
@@ -27,9 +26,8 @@ export default async function AppLayout({
     username: session.user.username,
   };
 
-  return (
-    <ThemeProvider initialThemeId={session.user.themeId}>
-      <DashboardShell user={user}>{children}</DashboardShell>
-    </ThemeProvider>
-  );
+  // ThemeProvider now lives in the root layout (src/app/layout.tsx) so
+  // that theming also covers the public landing page, not just the
+  // logged-in app shell — no need to wrap again here.
+  return <DashboardShell user={user}>{children}</DashboardShell>;
 }

@@ -10,8 +10,8 @@ const FOOTER_LINKS = {
 export function Footer() {
   return (
     <footer className="relative border-t border-border py-14 lg:py-16">
-      <div className="mx-auto max-w-7xl px-5 lg:px-8">
-        <div className="grid grid-cols-2 gap-10 sm:grid-cols-4 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
+      <div className="mx-auto max-w-7xl px-4 xs:px-5 lg:px-8">
+        <div className="grid grid-cols-1 gap-10 sm:grid-cols-4 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
             <Logo />
             <p className="mt-4 max-w-xs text-sm text-secondary">
@@ -20,25 +20,27 @@ export function Footer() {
             </p>
           </div>
 
-          {Object.entries(FOOTER_LINKS).map(([section, links]) => (
-            <div key={section}>
-              <div className="text-xs font-bold uppercase tracking-wider text-tertiary">
-                {section}
+          <div className="grid grid-cols-2 gap-8 xs:gap-10 sm:contents">
+            {Object.entries(FOOTER_LINKS).map(([section, links]) => (
+              <div key={section}>
+                <div className="text-xs font-bold uppercase tracking-wider text-tertiary">
+                  {section}
+                </div>
+                <ul className="mt-4 space-y-2.5">
+                  {links.map((link) => (
+                    <li key={link}>
+                      <Link
+                        href="#"
+                        className="text-sm text-secondary transition-colors hover:text-primary"
+                      >
+                        {link}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="mt-4 space-y-2.5">
-                {links.map((link) => (
-                  <li key={link}>
-                    <Link
-                      href="#"
-                      className="text-sm text-secondary transition-colors hover:text-primary"
-                    >
-                      {link}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-border pt-6 sm:flex-row">

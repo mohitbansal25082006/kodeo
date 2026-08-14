@@ -160,6 +160,16 @@ body {
     opacity: 0.035;
     mix-blend-mode: overlay;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    /* Skipped below 640px: mix-blend-mode forces the browser to
+       composite this element in its own layer, which is a measurable
+       cost on lower-powered mobile GPUs for a texture that's barely
+       perceptible at 3.5% opacity in the first place. */
+    display: none;
+  }
+  @media (min-width: 640px) {
+    .bg-noise::before {
+      display: block;
+    }
   }
 
   .glass {

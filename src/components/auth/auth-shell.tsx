@@ -56,13 +56,13 @@ export function AuthShell({ children, eyebrow, title, subtitle }: AuthShellProps
       {/* Right form panel */}
       <div className="flex flex-1 flex-col">
         {/* Mobile header */}
-        <div className="flex items-center justify-between border-b border-border px-5 py-4 lg:hidden">
+        <div className="flex items-center justify-between border-b border-border px-4 py-4 xs:px-5 lg:hidden">
           <Link href="/">
             <Logo markSize={24} />
           </Link>
         </div>
 
-        <div className="flex flex-1 items-center justify-center px-5 py-10 sm:px-8 lg:px-12">
+        <div className="flex flex-1 items-center justify-center px-4 py-10 xs:px-5 sm:px-8 lg:px-12">
           <div className="w-full max-w-[400px]">
             <div className="animate-fade-up mb-8">
               {eyebrow && (
