@@ -46,7 +46,7 @@ export function ProblemSection() {
           </div>
 
           {/* Solution */}
-          <div className="relative flex flex-col justify-center rounded-2xl border border-accent/20 bg-gradient-to-br from-accent-dim/40 via-surface to-surface p-8 lg:p-10">
+          <div className="relative flex flex-col justify-center overflow-hidden rounded-2xl border border-accent/20 bg-gradient-to-br from-accent-dim/40 via-surface to-surface p-8 lg:p-10">
             <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-accent/10 blur-[80px]" />
             <div className="relative">
               <div className="text-xs font-bold uppercase tracking-[0.15em] text-accent">

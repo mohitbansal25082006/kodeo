@@ -87,7 +87,11 @@ export default function ProfilePage() {
           title="Profile picture"
           description="Choose an avatar style — free, generated instantly by Multiavatar."
         >
-          <AvatarPicker seed={username || name} value={avatar} onChange={setAvatar} />
+          <AvatarPicker
+            seed={session.user.email || session.user.username || session.user.name}
+            value={avatar}
+            onChange={setAvatar}
+          />
         </SettingsSection>
 
         <SettingsSection title="Personal information" description="Update your name and username.">

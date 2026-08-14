@@ -1,7 +1,7 @@
 // src/app/api/onboarding/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { query } from "@/lib/db";
+import { query, isUniqueViolation } from "@/lib/db";
 import { z } from "zod";
 
 const onboardingSchema = z.object({
@@ -38,7 +38,11 @@ export async function POST(request: NextRequest) {
 
   const { username, developerRole, image } = parsed.data;
 
-  // Raw SQL uniqueness check — case-insensitive, excluding the current user.
+  // Fast-path check: catches the common case (someone else already has
+  // this username) with a clean error message before we even attempt
+  // the write. This is NOT sufficient on its own — see the catch block
+  // below for why — but it avoids a wasted write and gives a better
+  // error message in the normal (non-race) case.
   const existing = await query<{ id: string }>(
     `SELECT id FROM "user" WHERE lower(username) = lower($1) AND id != $2 LIMIT 1`,
     [username, session.user.id]
@@ -51,16 +55,32 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await query(
-    `UPDATE "user"
-     SET username = $1,
-         "developerRole" = $2,
-         image = COALESCE($3, image),
-         "onboardingCompletedAt" = now(),
-         "updatedAt" = now()
-     WHERE id = $4`,
-    [username, developerRole, image ?? null, session.user.id]
-  );
+  try {
+    await query(
+      `UPDATE "user"
+       SET username = $1,
+           "developerRole" = $2,
+           image = COALESCE($3, image),
+           "onboardingCompletedAt" = now(),
+           "updatedAt" = now()
+       WHERE id = $4`,
+      [username, developerRole, image ?? null, session.user.id]
+    );
+  } catch (err) {
+    // The database's case-insensitive unique index (see
+    // db/migrations/003_username_unique_ci.sql) is the actual
+    // authoritative guard against two users ending up with the same
+    // username — the SELECT check above is only a fast path and has a
+    // real race condition under concurrent requests for the same name.
+    // Postgres error code 23505 = unique_violation.
+    if (isUniqueViolation(err)) {
+      return NextResponse.json(
+        { error: "That username is already taken." },
+        { status: 409 }
+      );
+    }
+    throw err;
+  }
 
   return NextResponse.json({ success: true });
 }

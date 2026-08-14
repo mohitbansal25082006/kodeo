@@ -107,7 +107,7 @@ export default function OnboardingPage() {
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <AvatarPicker
-          seed={username || session?.user?.name || "kodeo"}
+          seed={session?.user?.email || session?.user?.name || "kodeo"}
           value={avatar}
           onChange={setAvatar}
         />

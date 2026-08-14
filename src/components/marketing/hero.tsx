@@ -23,7 +23,7 @@ export function Hero() {
     <section className="relative overflow-hidden pt-24 pb-12 xs:pt-28 sm:pb-16 lg:pt-40 lg:pb-24">
       {/* Background layers */}
       <div className="pointer-events-none absolute inset-0 bg-grid [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,black_20%,transparent_80%)]" />
-      <div className="pointer-events-none absolute left-1/2 top-[-10%] h-[500px] w-[900px] -translate-x-1/2 rounded-full bg-accent/[0.08] blur-[120px]" />
+      <div className="pointer-events-none absolute left-1/2 top-[-10%] h-[500px] w-[min(900px,100vw)] -translate-x-1/2 rounded-full bg-accent/[0.08] blur-[120px]" />
       <div className="pointer-events-none absolute inset-0 bg-noise" />
 
       <div className="relative mx-auto max-w-7xl px-4 xs:px-5 lg:px-8">

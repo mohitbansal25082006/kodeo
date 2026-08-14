@@ -1,7 +1,7 @@
 // src/app/api/profile/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { query } from "@/lib/db";
+import { query, isUniqueViolation } from "@/lib/db";
 import { z } from "zod";
 
 const profileSchema = z.object({
@@ -36,6 +36,10 @@ export async function POST(request: NextRequest) {
 
   const { name, username, developerRole, image } = parsed.data;
 
+  // Fast-path check — see the comment in src/app/api/onboarding/route.ts
+  // for why this alone is not sufficient and the try/catch below is the
+  // actual authoritative guard against a race between two concurrent
+  // requests for the same username.
   const existing = await query<{ id: string }>(
     `SELECT id FROM "user" WHERE lower(username) = lower($1) AND id != $2 LIMIT 1`,
     [username, session.user.id]
@@ -48,16 +52,26 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await query(
-    `UPDATE "user"
-     SET name = $1,
-         username = $2,
-         "developerRole" = $3,
-         image = COALESCE($4, image),
-         "updatedAt" = now()
-     WHERE id = $5`,
-    [name, username, developerRole, image ?? null, session.user.id]
-  );
+  try {
+    await query(
+      `UPDATE "user"
+       SET name = $1,
+           username = $2,
+           "developerRole" = $3,
+           image = COALESCE($4, image),
+           "updatedAt" = now()
+       WHERE id = $5`,
+      [name, username, developerRole, image ?? null, session.user.id]
+    );
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      return NextResponse.json(
+        { error: "That username is already taken." },
+        { status: 409 }
+      );
+    }
+    throw err;
+  }
 
   return NextResponse.json({ success: true });
 }

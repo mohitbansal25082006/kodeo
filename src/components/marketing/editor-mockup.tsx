@@ -51,29 +51,82 @@ const TOKEN_COLOR: Record<string, string> = {
 };
 
 export function EditorMockup() {
-  const [visibleLines, setVisibleLines] = React.useState(0);
+  // Start fully revealed by default (used for the very first server-
+  // rendered paint, for prefers-reduced-motion, and as the permanent
+  // state on mobile). Only opts INTO the sequential typewriter effect
+  // once we've confirmed, client-side, that we're on a wide-enough
+  // screen where it doesn't cost anything perceptible.
+  const [visibleLines, setVisibleLines] = React.useState(CODE_LINES.length);
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    // Respect prefers-reduced-motion: skip straight to the finished
-    // state instead of running 14 sequential re-renders. The global
-    // CSS rule in globals.css handles keyframe animations but has no
-    // effect on this component's own JS-driven setTimeout loop.
-    const prefersReducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
 
-    if (prefersReducedMotion) {
+    // Below this width the code panel is the ONLY visible column (the
+    // file explorer and preview panel are hidden — see the lg:grid-cols
+    // layout below), so a slow line-by-line typewriter effect there
+    // was the most visible source of "the mockup takes too long" and
+    // directly contradicts writing everything in parallel on mobile.
+    // On these screens, skip straight to the fully-typed state.
+    const isNarrowViewport = window.matchMedia("(max-width: 1023px)").matches;
+
+    if (prefersReducedMotion || isNarrowViewport) {
       setVisibleLines(CODE_LINES.length);
       return;
     }
 
-    if (visibleLines >= CODE_LINES.length) return;
-    const t = setTimeout(() => setVisibleLines((v) => v + 1), 90);
-    return () => clearTimeout(t);
-  }, [visibleLines]);
+    // Desktop only, and only once actually scrolled into view — no
+    // point spending render cycles animating something off-screen
+    // above the fold on a tall monitor, or before the hero has even
+    // finished its own entrance animation.
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const runTypewriter = () => {
+      setVisibleLines(0);
+      const BATCH_SIZE = 3;
+      const BATCH_INTERVAL_MS = 55;
+      let current = 0;
+      intervalId = setInterval(() => {
+        current = Math.min(current + BATCH_SIZE, CODE_LINES.length);
+        setVisibleLines(current);
+        if (current >= CODE_LINES.length && intervalId) {
+          clearInterval(intervalId);
+        }
+      }, BATCH_INTERVAL_MS);
+    };
+
+    const node = containerRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") {
+      runTypewriter();
+      return () => {
+        if (intervalId) clearInterval(intervalId);
+      };
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          runTypewriter();
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.2 }
+    );
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, []);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-bg-elevated shadow-elevated">
+    <div
+      ref={containerRef}
+      className="overflow-hidden rounded-2xl border border-border bg-bg-elevated shadow-elevated"
+    >
       {/* Browser chrome bar */}
       <div className="flex items-center gap-3 border-b border-border bg-surface px-4 py-3">
         <div className="flex gap-1.5">

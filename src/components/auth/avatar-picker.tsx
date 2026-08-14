@@ -53,24 +53,38 @@ function AvatarSvg({ avatarId, className }: { avatarId: string; className?: stri
 }
 
 export function AvatarPicker({ seed, value, onChange }: AvatarPickerProps) {
-  const effectiveSeed = seed || "kodeo-user";
+  // IMPORTANT: the seed is captured ONCE on mount (via useState's lazy
+  // initializer) and never updated again in response to the `seed` prop
+  // changing. If this instead read `seed` live on every render, typing
+  // in a username field that feeds `seed` (as onboarding does) would
+  // regenerate the entire avatar grid on every keystroke — visually
+  // this looked like the avatars "auto-shuffling" while typing, since
+  // each keystroke produced a brand new set of 6 avatars and the
+  // previously-selected one no longer matched anything in the new set.
+  // Only the explicit Shuffle button (or a real prop change from a
+  // parent that intentionally wants a new seed, e.g. switching users)
+  // should regenerate the grid.
+  const [lockedSeed] = React.useState(() => seed || "kodeo-user");
   const [round, setRound] = React.useState(0);
 
   const options = React.useMemo(
     () =>
       Array.from({ length: VARIANT_COUNT }, (_, i) =>
-        buildAvatarId(`${effectiveSeed}-r${round}`, i)
+        buildAvatarId(`${lockedSeed}-r${round}`, i)
       ),
-    [effectiveSeed, round]
+    [lockedSeed, round]
   );
 
-  // Keep the selection in sync with the first option by default.
+  // Keep the selection in sync with the first option by default, but
+  // only once, on mount — not every time options regenerate.
+  const didInitRef = React.useRef(false);
   React.useEffect(() => {
-    if (!value) {
+    if (!didInitRef.current && !value) {
+      didInitRef.current = true;
       onChange(options[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveSeed]);
+  }, []);
 
   return (
     <div>

@@ -49,3 +49,22 @@ export async function query<T extends Record<string, unknown> = Record<string, u
   const result = await pool.query(text, params);
   return result.rows as T[];
 }
+
+/**
+ * True if the given error is a Postgres unique_violation (code 23505),
+ * i.e. an INSERT/UPDATE was rejected by a UNIQUE constraint or unique
+ * index. Use this to turn a database-level constraint failure into a
+ * clean user-facing error instead of a generic 500 — this is the
+ * authoritative guard against race conditions that an application-level
+ * "check if it exists, then write" pattern cannot fully close on its
+ * own (two concurrent requests can both pass the check before either
+ * commits; only the database can atomically guarantee uniqueness).
+ */
+export function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: string }).code === "23505"
+  );
+}
