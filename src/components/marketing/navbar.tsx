@@ -39,9 +39,16 @@ export function Navbar() {
   return (
     <header
       className={cn(
-        "fixed top-0 inset-x-0 z-50 transition-all duration-300",
+        "fixed top-0 inset-x-0 z-50 transition-colors duration-300 will-change-[background-color]",
+        // No backdrop-blur below sm: a fixed, full-width element with
+        // backdrop-filter forces the browser to re-sample everything
+        // behind it on every single scroll frame — one of the most
+        // common causes of janky mobile scrolling. A near-opaque solid
+        // background looks almost identical and costs nothing to
+        // composite. Blur is restored from sm upward, where it's
+        // cheaper relative to typical viewport/GPU headroom.
         scrolled
-          ? "bg-bg/90 backdrop-blur-md border-b border-border sm:bg-bg/85 sm:backdrop-blur-xl"
+          ? "bg-bg/97 border-b border-border sm:bg-bg/85 sm:backdrop-blur-xl"
           : "bg-transparent border-b border-transparent"
       )}
     >

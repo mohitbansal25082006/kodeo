@@ -105,6 +105,23 @@ body {
   overflow-x: hidden;
   width: 100%;
   max-width: 100vw;
+  /* Restores native inertial ("momentum") scrolling on iOS Safari.
+     Without this, scrolling inside any element can fall back to a
+     step-by-step, non-inertial scroll that feels noticeably janky
+     compared to the rest of the OS. */
+  -webkit-overflow-scrolling: touch;
+  /* Stops the whole page from visually "rubber-banding"/bouncing past
+     its own top/bottom edge on touch devices, and prevents a scroll
+     gesture from propagating to (and jankily triggering) a pull-to-
+     refresh or a parent scroll container. */
+  overscroll-behavior-y: none;
+}
+
+/* Applies smooth inertial scrolling inside any element that scrolls
+   on its own (e.g. the dashboard's <main> content area, or any
+   overflow-x-auto code block), not just the page as a whole. */
+* {
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ---------- Scrollbar ---------- */

@@ -226,8 +226,16 @@ export function EditorMockup() {
           </div>
         </div>
 
-        {/* Preview panel */}
-        <div className="bg-bg-elevated p-3">
+        {/* Preview panel - hidden on mobile, same as the file explorer.
+            Previously this had no responsive visibility class at all,
+            so on mobile (grid-cols-1) it rendered full-height stacked
+            BELOW the code editor instead of being hidden — making the
+            whole card much taller than intended and pushing every
+            section after it further down the page, which is what
+            made the rest of the landing page feel slow to reach on
+            mobile even though nothing was actually blocked from
+            loading. */}
+        <div className="hidden bg-bg-elevated p-3 lg:block">
           <div className="mb-2 flex items-center justify-between px-1">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-tertiary">
               Preview
