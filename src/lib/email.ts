@@ -3,7 +3,7 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM = process.env.RESEND_FROM_EMAIL || "KODEO <onboarding@resend.dev>";
+const FROM = process.env.RESEND_FROM_EMAIL || "KODEO <onboarding@kodeo.website>";
 
 /**
  * Shared KODEO-branded HTML wrapper for transactional emails.
@@ -141,6 +141,54 @@ export async function sendAccountDeletionEmail({ to, url }: { to: string; url: s
         </div>
         <p style="margin:20px 0 0;font-size:12px;color:#6b6b70;text-align:center;">
           If you didn't request this, ignore this email — your account is safe.
+        </p>
+      `,
+    }),
+  });
+}
+
+/**
+ * Sent when someone invites another person to a KODEO workspace
+ * (Part 2c). `acceptUrl` points at the public /invite/[token] landing
+ * page on kodeo.website — that page itself handles both "not signed
+ * in yet" (prompts sign-up/login first) and "signed in" (shows an
+ * Accept / Decline choice) rather than baking any auth state into the
+ * link itself.
+ */
+export async function sendWorkspaceInvitationEmail({
+  to,
+  workspaceName,
+  inviterName,
+  role,
+  acceptUrl,
+}: {
+  to: string;
+  workspaceName: string;
+  inviterName: string;
+  role: string;
+  acceptUrl: string;
+}) {
+  const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: `${inviterName} invited you to join ${workspaceName} on KODEO`,
+    html: emailShell({
+      heading: `You're invited to ${workspaceName}`,
+      body: `
+        <p style="margin:0 0 20px;font-size:14px;color:#a1a1aa;line-height:1.6;">
+          <strong style="color:#ffffff;">${inviterName}</strong> invited you to join
+          <strong style="color:#ffffff;">${workspaceName}</strong> on KODEO as
+          <strong style="color:#d7fb43;">${roleLabel}</strong>.
+        </p>
+        <div style="text-align:center;">
+          <a href="${acceptUrl}" style="display:inline-block;padding:12px 28px;background:#d7fb43;border-radius:10px;color:#08090a;font-weight:700;font-size:14px;text-decoration:none;">
+            View invitation
+          </a>
+        </div>
+        <p style="margin:20px 0 0;font-size:12px;color:#6b6b70;text-align:center;">
+          This invitation expires in 7 days. If you weren't expecting this, you can ignore this email.
         </p>
       `,
     }),

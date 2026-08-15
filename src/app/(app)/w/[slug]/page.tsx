@@ -1,9 +1,11 @@
 // src/app/(app)/w/[slug]/page.tsx
 import { headers } from "next/headers";
-import { FolderGit2, Users } from "lucide-react";
+import { Users } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getWorkspaceBySlugForUser } from "@/lib/workspace/queries";
+import { listProjects } from "@/lib/project/queries";
 import { WORKSPACE_ROLE_META } from "@/lib/workspace/types";
+import { ProjectsGrid } from "@/components/project/projects-grid";
 
 export default async function WorkspaceOverviewPage({
   params,
@@ -17,11 +19,10 @@ export default async function WorkspaceOverviewPage({
   const workspace = await getWorkspaceBySlugForUser(slug, session.user.id);
   // WorkspaceLayout (the parent (app)/w/[slug]/layout.tsx) already
   // calls notFound() if this is null, so this render only happens
-  // with a valid workspace — this second lookup is a small, cheap
-  // duplicate rather than plumbing the resolved workspace through
-  // React context, keeping each page independently fetchable.
+  // with a valid workspace.
   if (!workspace) return null;
 
+  const projects = await listProjects(workspace.id);
   const roleMeta = WORKSPACE_ROLE_META[workspace.role];
 
   return (
@@ -36,16 +37,14 @@ export default async function WorkspaceOverviewPage({
         </span>
       </div>
 
-      {/* Projects land in Part 2c */}
-      <div className="mt-8 flex flex-col items-center rounded-2xl border border-dashed border-border bg-surface/40 px-6 py-16 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-bg-elevated">
-          <FolderGit2 className="h-6 w-6 text-tertiary" />
-        </div>
-        <h3 className="mt-5 text-lg font-semibold text-primary">No projects yet</h3>
-        <p className="mt-2 max-w-sm text-sm text-secondary">
-          Projects and invitations are coming to this workspace in the next
-          update.
-        </p>
+      <div className="mt-8">
+        <ProjectsGrid
+          workspaceId={workspace.id}
+          workspaceSlug={workspace.slug}
+          currentUserId={session.user.id}
+          currentUserRole={workspace.role}
+          initialProjects={projects}
+        />
       </div>
     </div>
   );

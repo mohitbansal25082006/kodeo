@@ -79,7 +79,7 @@ export function DeleteWorkspaceSection({ workspaceId, workspaceName }: DeleteWor
               <X className="h-4 w-4" />
             </button>
 
-            <h2 className="text-lg font-semibold text-danger">Delete "{workspaceName}"?</h2>
+            <h2 className="text-lg font-semibold text-danger">Delete &quot;{workspaceName}&quot;?</h2>
             <p className="mt-2 text-sm text-secondary">
               This permanently deletes the workspace, removes every member, and
               cannot be undone. Type <span className="font-mono-tech font-semibold text-primary">{workspaceName}</span>{" "}

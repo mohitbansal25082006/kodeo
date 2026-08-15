@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     "real-time collaboration",
     "cloud development environment",
   ],
-  metadataBase: new URL("https://kodeo.dev"),
+  metadataBase: new URL("https://kodeo.website"),
   openGraph: {
     title: "KODEO — Build together. Code anywhere.",
     description:

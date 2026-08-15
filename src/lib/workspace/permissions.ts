@@ -63,11 +63,6 @@ export function canViewMembers(role: WorkspaceRole): boolean {
   return isWorkspaceMember(role);
 }
 
-/** Invite new members (invitations themselves ship in Part 2c). */
-export function canInviteMembers(role: WorkspaceRole): boolean {
-  return hasAtLeastRole(role, "admin");
-}
-
 /**
  * Change another member's role. An actor can only set a role on a
  * target they outrank, and can only grant a role at or below their
@@ -95,8 +90,6 @@ export function canChangeMemberRole(
  * Remove a member from the workspace. Same "must outrank the target"
  * rule as role changes — an admin can remove editors/viewers but not
  * other admins or the owner; only the owner can remove an admin.
- * Removing yourself (leaving the workspace) is handled by a separate
- * check below since the outranking rule doesn't apply to yourself.
  */
 export function canRemoveMember(actorRole: WorkspaceRole, targetRole: WorkspaceRole): boolean {
   if (!hasAtLeastRole(actorRole, "admin")) return false;
@@ -105,8 +98,7 @@ export function canRemoveMember(actorRole: WorkspaceRole, targetRole: WorkspaceR
 
 /**
  * Leaving a workspace voluntarily. Anyone except the sole owner can
- * leave at will — an owner must transfer ownership first (see
- * canTransferOwnership / the isLastOwner check in queries.ts), since
+ * leave at will — an owner must transfer ownership first, since
  * leaving would otherwise strand the workspace with no owner at all.
  */
 export function canLeaveWorkspace(role: WorkspaceRole): boolean {
@@ -116,4 +108,71 @@ export function canLeaveWorkspace(role: WorkspaceRole): boolean {
 /** Only the current owner can initiate an ownership transfer. */
 export function canTransferOwnership(actorRole: WorkspaceRole): boolean {
   return actorRole === "owner";
+}
+
+// ────────────────────────────────────────────────────────────
+// Part 2c — invitations, projects
+// ────────────────────────────────────────────────────────────
+
+/** Invite new members by email. Admins and owners only — mirrors canEditWorkspaceDetails' bar. */
+export function canInviteMembers(role: WorkspaceRole): boolean {
+  return hasAtLeastRole(role, "admin");
+}
+
+/**
+ * Revoke a pending invitation. Same bar as sending one — if you can
+ * invite, you can un-invite. (Unlike member removal, there's no
+ * "outranks the target" question here since an invitation has no
+ * role of its own yet, just the role it will grant on acceptance.)
+ */
+export function canRevokeInvitation(role: WorkspaceRole): boolean {
+  return hasAtLeastRole(role, "admin");
+}
+
+/**
+ * See the list of pending invitations. Kept at the same admin+ bar as
+ * sending them, rather than opening it to every member — who has and
+ * hasn't been invited is a light management detail, not something
+ * viewers/editors need visibility into.
+ */
+export function canViewInvitations(role: WorkspaceRole): boolean {
+  return hasAtLeastRole(role, "admin");
+}
+
+/**
+ * An invitation can only grant a role the inviter themselves could
+ * grant directly via canChangeMemberRole's "can't grant above your
+ * own rank" rule — an admin can invite someone as admin/editor/viewer,
+ * but never as owner (ownership has no invitation path at all, see
+ * the CHECK constraint in 005_invitations_and_projects.sql).
+ */
+export function canInviteAsRole(actorRole: WorkspaceRole, invitedRole: WorkspaceRole): boolean {
+  if (invitedRole === "owner") return false;
+  return hasAtLeastRole(actorRole, "admin") && hasAtLeastRole(actorRole, invitedRole);
+}
+
+/** Create a new project within the workspace. Editors and above — viewers are read-only by design. */
+export function canCreateProject(role: WorkspaceRole): boolean {
+  return hasAtLeastRole(role, "editor");
+}
+
+/** Edit a project's name/description/status. Same bar as creating one. */
+export function canEditProject(role: WorkspaceRole): boolean {
+  return hasAtLeastRole(role, "editor");
+}
+
+/**
+ * Delete a project. Admins and owners can delete any project in the
+ * workspace; an editor may only delete a project they created
+ * themselves — matches the "editors build, admins govern" split used
+ * throughout Part 2's role model, and avoids one editor being able to
+ * destroy another editor's work.
+ */
+export function canDeleteProject(
+  actorRole: WorkspaceRole,
+  actorUserId: string,
+  projectCreatedById: string
+): boolean {
+  if (hasAtLeastRole(actorRole, "admin")) return true;
+  return actorRole === "editor" && actorUserId === projectCreatedById;
 }

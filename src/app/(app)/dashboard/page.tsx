@@ -17,17 +17,10 @@ export default async function DashboardPage() {
     listWorkspacesForUser(session.user.id),
   ]);
 
-  // /dashboard is now just a router: if the user has an active
-  // workspace, forward straight to its slug-based overview page
-  // rather than duplicating that page's content here. This keeps
-  // "workspace overview" living in exactly one place (/w/[slug]) once
-  // a workspace exists, and reserves /dashboard for the states where
-  // there's genuinely nothing to route to yet.
   if (activeWorkspace) {
     redirect(`/w/${activeWorkspace.slug}`);
   }
 
-  // No workspaces at all — first-run empty state.
   if (allWorkspaces.length === 0) {
     return (
       <div>
@@ -52,18 +45,13 @@ export default async function DashboardPage() {
           </DashboardCreateButton>
           <div className="mt-6 flex items-center gap-1.5 text-xs text-tertiary">
             <Sparkles className="h-3.5 w-3.5 text-accent" />
-            Projects are coming in a future update
+            More project features are coming in a future update
           </div>
         </div>
       </div>
     );
   }
 
-  // Has workspaces, but none active (e.g. the previously active one
-  // was deleted, or this is a fresh session on a new device) — show a
-  // simple picker. WorkspaceSwitcher in the sidebar is always
-  // available too; this is just the main-panel equivalent so the page
-  // isn't blank.
   return (
     <div>
       <h2 className="text-xl font-bold text-primary">Select a workspace</h2>

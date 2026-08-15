@@ -14,16 +14,11 @@ export default async function WorkspaceLayout({
   params: Promise<{ slug: string }>;
 }) {
   const session = await auth.api.getSession({ headers: await headers() });
-  // (app)/layout.tsx above this already guarantees a session exists.
   if (!session?.user) return null;
 
   const { slug } = await params;
   const workspace = await getWorkspaceBySlugForUser(slug, session.user.id);
 
-  // Not found OR not a member — see getWorkspaceBySlugForUser's doc
-  // comment for why these two cases are deliberately indistinguishable
-  // to the caller. notFound() renders the standard Next.js 404, which
-  // is the right response either way.
   if (!workspace) {
     notFound();
   }

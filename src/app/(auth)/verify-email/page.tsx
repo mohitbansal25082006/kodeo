@@ -15,6 +15,11 @@ function VerifyEmailForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
+  // Carried over from /register?next=... (see that page's comment on
+  // why a fresh sign-up always has to pass through /onboarding first
+  // rather than jumping straight to `next`) — forwarded again below so
+  // onboarding can finish the handoff once it completes.
+  const next = searchParams.get("next");
 
   const [otp, setOtp] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -45,9 +50,9 @@ function VerifyEmailForm() {
         return;
       }
 
-      router.push("/onboarding");
+      router.push(next ? `/onboarding?next=${encodeURIComponent(next)}` : "/onboarding");
     },
-    [email, router]
+    [email, router, next]
   );
 
   React.useEffect(() => {

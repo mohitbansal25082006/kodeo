@@ -17,13 +17,6 @@ interface ConfirmModalProps {
   onClose: () => void;
 }
 
-/**
- * Generic confirm dialog shared by every destructive workspace action
- * (remove member, leave workspace, transfer ownership) so each one
- * doesn't reinvent its own modal shell — mirrors the shape of
- * delete-account-modal.tsx from Part 1c but is parameterized instead
- * of account-deletion-specific.
- */
 export function ConfirmModal({
   open,
   title,

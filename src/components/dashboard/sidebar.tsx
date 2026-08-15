@@ -49,11 +49,6 @@ export function Sidebar({ user, activeWorkspace, onNavigate }: SidebarProps) {
     return pathname === href || pathname.startsWith(href + "/");
   }
 
-  // With no active workspace, "Workspace overview" falls back to
-  // /dashboard, which itself renders the create/pick empty state —
-  // there's no /w/[slug] to link to yet. Once one is active, the nav
-  // item follows it directly to /w/[slug] rather than round-tripping
-  // through /dashboard's redirect logic on every click.
   const overviewHref = activeWorkspace ? `/w/${activeWorkspace.slug}` : "/dashboard";
   const overviewActive =
     pathname === overviewHref || (activeWorkspace && pathname.startsWith(`/w/${activeWorkspace.slug}`));

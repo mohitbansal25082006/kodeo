@@ -29,15 +29,6 @@ const STATIC_TITLES: Record<string, string> = {
   "/settings/danger": "Danger zone",
 };
 
-/**
- * /w/[slug]/* pages are workspace-scoped rather than static, so their
- * title can't live in STATIC_TITLES keyed by exact pathname the way
- * account settings pages do — instead this derives the title from
- * whichever tab segment follows the slug ("members", "settings", or
- * nothing for the overview), falling back to the workspace's own name
- * for the overview tab so the topbar reads e.g. "Acme Corp" rather
- * than a generic "Overview".
- */
 function titleForWorkspacePath(pathname: string, workspaceName: string | undefined): string | null {
   const match = pathname.match(/^\/w\/[^/]+(?:\/([^/]+))?/);
   if (!match) return null;
@@ -45,6 +36,12 @@ function titleForWorkspacePath(pathname: string, workspaceName: string | undefin
   const tab = match[1];
   if (tab === "members") return "Members";
   if (tab === "settings") return "Workspace settings";
+  // A third segment (project slug) also matches this pattern's
+  // optional group as "members"/"settings" would, but since neither
+  // literal matches, it falls through to the workspace-name fallback
+  // below — good enough for Part 2c's placeholder project page;
+  // showing the specific project name in the topbar can be added
+  // later without changing this function's shape.
   return workspaceName || "Workspace";
 }
 

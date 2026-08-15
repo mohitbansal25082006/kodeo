@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 
 interface RolePickerProps {
   value: WorkspaceRole;
-  /** Roles the current actor is allowed to set this member to. Owner is never offered here — see canChangeMemberRole. */
   assignableRoles: WorkspaceRole[];
   disabled?: boolean;
   loading?: boolean;
@@ -30,9 +29,6 @@ export function RolePicker({ value, assignableRoles, disabled, loading, onChange
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
-  // A locked picker (owner row, or an actor who can't change this
-  // member at all) renders as a plain badge — no dropdown affordance
-  // implying a change is possible when it isn't.
   if (disabled || assignableRoles.length === 0) {
     return (
       <span className="inline-flex items-center rounded-full border border-border bg-surface/60 px-2.5 py-1 text-xs font-medium text-secondary">

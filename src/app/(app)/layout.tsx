@@ -26,18 +26,8 @@ export default async function AppLayout({
     username: session.user.username,
   };
 
-  // Resolved once here so every page under (app) — dashboard, /w/[slug]/*,
-  // profile, settings/* — gets the same activeWorkspace without each
-  // page re-fetching it. getActiveWorkspace re-verifies membership
-  // itself (see src/lib/workspace/queries.ts), so this is also safe if
-  // the stored activeWorkspaceId points at a workspace the user has
-  // since been removed from — it resolves to null rather than leaking
-  // data.
   const activeWorkspace = await getActiveWorkspace(session.user.id);
 
-  // ThemeProvider now lives in the root layout (src/app/layout.tsx) so
-  // that theming also covers the public landing page, not just the
-  // logged-in app shell — no need to wrap again here.
   return (
     <DashboardShell user={user} activeWorkspace={activeWorkspace}>
       {children}

@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AtSign, ArrowRight, AlertCircle } from "lucide-react";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { AvatarPicker } from "@/components/auth/avatar-picker";
@@ -11,8 +11,15 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { authClient, useSession } from "@/lib/auth-client";
 
-export default function OnboardingPage() {
+function OnboardingForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Where to land once onboarding is done — set by /register or
+  // /verify-email when the sign-up started from somewhere specific
+  // (e.g. an invitation link at /invite/[token]). Falls back to the
+  // dashboard, which itself forwards to the active workspace or shows
+  // the picker/empty-state (see (app)/dashboard/page.tsx).
+  const next = searchParams.get("next");
   const { data: session, isPending } = useSession();
 
   const [username, setUsername] = React.useState("");
@@ -80,7 +87,15 @@ export default function OnboardingPage() {
       // fresh data before we navigate.
       await authClient.getSession({ query: { disableCookieCache: true } });
 
-      router.push("/dashboard");
+      // `next` is a value we generated ourselves (see register/verify-email)
+      // and only ever points at an internal path like /invite/[token],
+      // but it still arrived via a URL query string, so it's treated as
+      // untrusted input here: only an internal, same-origin path is
+      // honored, otherwise this falls back to /dashboard. This also
+      // guards against an open-redirect if the query param were ever
+      // tampered with directly.
+      const isSafeInternalPath = next && next.startsWith("/") && !next.startsWith("//");
+      router.push(isSafeInternalPath ? next : "/dashboard");
       router.refresh();
     } catch {
       // Network failure, offline, CORS, etc. Without this catch the
@@ -149,5 +164,13 @@ export default function OnboardingPage() {
         </Button>
       </form>
     </AuthShell>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <OnboardingForm />
+    </React.Suspense>
   );
 }

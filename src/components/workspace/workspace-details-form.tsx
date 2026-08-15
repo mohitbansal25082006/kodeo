@@ -71,11 +71,7 @@ export function WorkspaceDetailsForm({
       setSaved(true);
       // The slug may have changed — refresh so the URL (and every
       // /w/[slug]/* link built from it) reflects the new value on
-      // next navigation. router.refresh() alone doesn't change the
-      // address bar, so a slug edit intentionally leaves the user on
-      // the old URL until they navigate again, same as most SaaS
-      // rename flows (Slack, Linear) rather than force a redirect
-      // mid-edit that could feel jarring.
+      // next navigation, rather than force a redirect mid-edit.
       router.refresh();
       setLoading(false);
     } catch {
@@ -116,7 +112,7 @@ export function WorkspaceDetailsForm({
           value={slug}
           onChange={(e) => setSlug(e.target.value.toLowerCase())}
           maxLength={48}
-          hint={`kodeo.dev/w/${slug || "your-workspace"}`}
+          hint={`kodeo.website/w/${slug || "your-workspace"}`}
         />
 
         <Input

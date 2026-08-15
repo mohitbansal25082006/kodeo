@@ -10,6 +10,15 @@ export type WorkspaceRole = "owner" | "admin" | "editor" | "viewer";
 
 export const WORKSPACE_ROLES: WorkspaceRole[] = ["owner", "admin", "editor", "viewer"];
 
+/**
+ * Roles that can be granted through an invitation. Owner is excluded
+ * — see the CHECK constraint in 005_invitations_and_projects.sql and
+ * canInviteAsRole in permissions.ts for why ownership never flows
+ * through the invite path.
+ */
+export type InvitableRole = "admin" | "editor" | "viewer";
+export const INVITABLE_ROLES: InvitableRole[] = ["admin", "editor", "viewer"];
+
 export interface WorkspaceRoleMeta {
   id: WorkspaceRole;
   label: string;
@@ -76,4 +85,56 @@ export interface WorkspaceMember {
     image: string | null;
     username: string | null;
   };
+}
+
+// ────────────────────────────────────────────────────────────
+// Part 2c — invitations, projects
+// ────────────────────────────────────────────────────────────
+
+export type InvitationStatus = "pending" | "accepted" | "declined" | "revoked";
+
+export interface WorkspaceInvitation {
+  id: string;
+  workspaceId: string;
+  email: string;
+  role: InvitableRole;
+  status: InvitationStatus;
+  invitedById: string;
+  expiresAt: string;
+  createdAt: string;
+  invitedBy: {
+    name: string;
+    email: string;
+  };
+}
+
+/**
+ * The shape a public /invite/[token] landing page needs — enough to
+ * show "You've been invited to join {workspace.name} as {role}" and
+ * confirm without leaking anything about the workspace to someone who
+ * hasn't accepted yet (no member list, no other invitations, etc).
+ */
+export interface InvitationPreview {
+  workspaceName: string;
+  workspaceIcon: string | null;
+  role: InvitableRole;
+  inviterName: string;
+  email: string;
+  status: InvitationStatus;
+  expiresAt: string;
+}
+
+export type ProjectStatus = "active" | "archived";
+
+export interface Project {
+  id: string;
+  workspaceId: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  icon: string | null;
+  status: ProjectStatus;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
 }

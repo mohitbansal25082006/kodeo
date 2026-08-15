@@ -1,4 +1,4 @@
-// src/components/workspace/create-workspace-modal.tsx
+// src/components/project/create-project-modal.tsx
 "use client";
 
 import * as React from "react";
@@ -6,19 +6,20 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { WorkspaceIcon } from "@/components/workspace/workspace-icon";
-import type { Workspace } from "@/lib/workspace/types";
+import type { Project } from "@/lib/workspace/types";
 
-interface CreateWorkspaceModalProps {
+interface CreateProjectModalProps {
   open: boolean;
+  workspaceId: string;
   onClose: () => void;
-  onCreated: (workspace: Workspace) => void;
+  onCreated: (project: Project) => void;
 }
 
 function randomSeed() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-export function CreateWorkspaceModal({ open, onClose, onCreated }: CreateWorkspaceModalProps) {
+export function CreateProjectModal({ open, workspaceId, onClose, onCreated }: CreateProjectModalProps) {
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [iconSeed, setIconSeed] = React.useState(randomSeed());
@@ -47,7 +48,7 @@ export function CreateWorkspaceModal({ open, onClose, onCreated }: CreateWorkspa
 
     setLoading(true);
     try {
-      const res = await fetch("/api/workspaces", {
+      const res = await fetch(`/api/workspaces/${workspaceId}/projects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -64,7 +65,7 @@ export function CreateWorkspaceModal({ open, onClose, onCreated }: CreateWorkspa
         return;
       }
 
-      onCreated(data.workspace);
+      onCreated(data.project);
     } catch {
       setError("Something went wrong. Try again.");
       setLoading(false);
@@ -88,15 +89,15 @@ export function CreateWorkspaceModal({ open, onClose, onCreated }: CreateWorkspa
           <X className="h-4 w-4" />
         </button>
 
-        <h2 className="text-lg font-semibold text-primary">Create a workspace</h2>
+        <h2 className="text-lg font-semibold text-primary">Create a project</h2>
         <p className="mt-1 text-sm text-secondary">
-          A workspace is where your team&apos;s projects live.
+          Projects organize work within this workspace.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-border">
-              <WorkspaceIcon icon={iconSeed} name={name || "Workspace"} />
+              <WorkspaceIcon icon={iconSeed} name={name || "Project"} />
             </div>
             <button
               type="button"
@@ -109,8 +110,8 @@ export function CreateWorkspaceModal({ open, onClose, onCreated }: CreateWorkspa
           </div>
 
           <Input
-            label="Workspace name"
-            placeholder="Acme Corp"
+            label="Project name"
+            placeholder="Marketing site"
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={60}
@@ -120,7 +121,7 @@ export function CreateWorkspaceModal({ open, onClose, onCreated }: CreateWorkspa
 
           <Input
             label="Description (optional)"
-            placeholder="What's this workspace for?"
+            placeholder="What's this project for?"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={200}
@@ -134,7 +135,7 @@ export function CreateWorkspaceModal({ open, onClose, onCreated }: CreateWorkspa
               Cancel
             </Button>
             <Button type="submit" variant="primary" size="md" loading={loading}>
-              Create workspace
+              Create project
             </Button>
           </div>
         </form>

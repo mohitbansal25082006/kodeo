@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Lock, User, ArrowRight, AlertCircle } from "lucide-react";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
@@ -13,13 +13,35 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Where to send the person after the full sign-up flow completes.
+  // Falls back to onboarding's own default (/dashboard) when absent —
+  // see the query-string handoff below for why this has to survive
+  // three separate redirects (OAuth callback, OTP verification,
+  // onboarding) rather than just being read once.
+  const next = searchParams.get("next");
+
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  // Onboarding is mandatory for every new account (see middleware.ts's
+  // PROTECTED_PAGES and the (app)/layout.tsx redirect for
+  // onboardingCompletedAt), so a brand-new sign-up can never jump
+  // straight to `next` — it always has to pass through /onboarding
+  // first. Appending `next` as onboarding's own query param means
+  // onboarding is responsible for forwarding to it on completion
+  // instead of this page trying to skip a mandatory step.
+  const onboardingUrl = next ? `/onboarding?next=${encodeURIComponent(next)}` : "/onboarding";
+  const verifyEmailUrl = (emailValue: string) => {
+    const params = new URLSearchParams({ email: emailValue });
+    if (next) params.set("next", next);
+    return `/verify-email?${params.toString()}`;
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,7 +71,7 @@ export default function RegisterPage() {
       type: "email-verification",
     });
 
-    router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+    router.push(verifyEmailUrl(email));
   }
 
   return (
@@ -58,7 +80,7 @@ export default function RegisterPage() {
       title="Create your account"
       subtitle="Start building in seconds — no credit card required."
     >
-      <OAuthButtons callbackURL="/onboarding" />
+      <OAuthButtons callbackURL={onboardingUrl} />
       <AuthDivider />
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -117,7 +139,10 @@ export default function RegisterPage() {
 
       <p className="mt-6 text-center text-sm text-secondary">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-primary hover:text-accent">
+        <Link
+          href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}
+          className="font-medium text-primary hover:text-accent"
+        >
           Log in
         </Link>
       </p>
@@ -127,5 +152,13 @@ export default function RegisterPage() {
         Privacy Policy.
       </p>
     </AuthShell>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <RegisterForm />
+    </React.Suspense>
   );
 }

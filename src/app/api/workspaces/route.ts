@@ -7,8 +7,6 @@ import { createWorkspace, listWorkspacesForUser, SlugExhaustedError } from "@/li
 const createWorkspaceSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters.").max(60, "Name must be at most 60 characters."),
   description: z.string().max(200, "Description must be at most 200 characters.").optional(),
-  // Multiavatar-style seed identifier, same convention as user avatars
-  // (see src/lib/avatar.ts) — generated client-side, not user-uploaded.
   icon: z.string().max(200).optional(),
 });
 

@@ -1,4 +1,3 @@
-// src/middleware.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
 
@@ -10,7 +9,7 @@ const AUTH_PAGES = [
   "/verify-email",
 ];
 
-const PROTECTED_PAGES = ["/onboarding", "/dashboard", "/profile", "/settings"];
+const PROTECTED_PAGES = ["/onboarding", "/dashboard", "/profile", "/settings", "/w"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -48,5 +47,6 @@ export const config = {
     "/dashboard/:path*",
     "/profile/:path*",
     "/settings/:path*",
+    "/w/:path*",
   ],
 };

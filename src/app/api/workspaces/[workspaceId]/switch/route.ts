@@ -14,10 +14,6 @@ export async function POST(
   }
 
   const { workspaceId } = await params;
-
-  // setActiveWorkspace re-verifies membership itself before writing —
-  // see src/lib/workspace/queries.ts — so a user can't switch into a
-  // workspace ID they don't belong to just by knowing/guessing it.
   const ok = await setActiveWorkspace(session.user.id, workspaceId);
 
   if (!ok) {
