@@ -16,7 +16,9 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
 import { cn } from "@/lib/utils";
+import type { WorkspaceWithRole } from "@/lib/workspace/types";
 
 interface SidebarProps {
   user: {
@@ -25,10 +27,9 @@ interface SidebarProps {
     image?: string | null;
     username?: string | null;
   };
+  activeWorkspace: WorkspaceWithRole | null;
   onNavigate?: () => void;
 }
-
-const MAIN_NAV = [{ href: "/dashboard", label: "Workspaces", icon: LayoutGrid }];
 
 const SETTINGS_NAV = [
   { href: "/profile", label: "Profile", icon: User },
@@ -38,7 +39,7 @@ const SETTINGS_NAV = [
   { href: "/settings/danger", label: "Danger zone", icon: AlertTriangle, danger: true },
 ];
 
-export function Sidebar({ user, onNavigate }: SidebarProps) {
+export function Sidebar({ user, activeWorkspace, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const [settingsOpen, setSettingsOpen] = React.useState(
     pathname.startsWith("/settings") || pathname.startsWith("/profile")
@@ -48,6 +49,15 @@ export function Sidebar({ user, onNavigate }: SidebarProps) {
     return pathname === href || pathname.startsWith(href + "/");
   }
 
+  // With no active workspace, "Workspace overview" falls back to
+  // /dashboard, which itself renders the create/pick empty state —
+  // there's no /w/[slug] to link to yet. Once one is active, the nav
+  // item follows it directly to /w/[slug] rather than round-tripping
+  // through /dashboard's redirect logic on every click.
+  const overviewHref = activeWorkspace ? `/w/${activeWorkspace.slug}` : "/dashboard";
+  const overviewActive =
+    pathname === overviewHref || (activeWorkspace && pathname.startsWith(`/w/${activeWorkspace.slug}`));
+
   return (
     <div className="flex h-full flex-col bg-bg-elevated">
       <div className="flex h-16 items-center border-b border-border px-5">
@@ -56,27 +66,23 @@ export function Sidebar({ user, onNavigate }: SidebarProps) {
         </Link>
       </div>
 
+      <WorkspaceSwitcher activeWorkspace={activeWorkspace} onNavigate={onNavigate} />
+
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <div className="space-y-0.5">
-          {MAIN_NAV.map((item) => {
-            const active = isActive(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onNavigate}
-                className={cn(
-                  "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-accent-dim/50 text-accent"
-                    : "text-secondary hover:bg-surface hover:text-primary"
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            );
-          })}
+          <Link
+            href={overviewHref}
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+              overviewActive
+                ? "bg-accent-dim/50 text-accent"
+                : "text-secondary hover:bg-surface hover:text-primary"
+            )}
+          >
+            <LayoutGrid className="h-4 w-4" />
+            Workspace overview
+          </Link>
         </div>
 
         <div className="mt-6">

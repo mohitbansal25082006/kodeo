@@ -51,12 +51,17 @@ const TOKEN_COLOR: Record<string, string> = {
 };
 
 export function EditorMockup() {
-  // Start fully revealed by default (used for the very first server-
-  // rendered paint, for prefers-reduced-motion, and as the permanent
-  // state on mobile). Only opts INTO the sequential typewriter effect
-  // once we've confirmed, client-side, that we're on a wide-enough
-  // screen where it doesn't cost anything perceptible.
-  const [visibleLines, setVisibleLines] = React.useState(CODE_LINES.length);
+  // Desktop-only typewriter state. On mobile this is intentionally
+  // NEVER used to control what's rendered — see the isTyping-driven
+  // className below instead, which is pure CSS and therefore cannot
+  // race or flicker regardless of any JS timing (matchMedia listeners,
+  // effect scheduling, hydration order, etc). Previously this relied
+  // on a runtime matchMedia check inside a useEffect to decide whether
+  // to show partial lines, which left a real (if narrow) window where
+  // mobile could still render a partially-typed state before the
+  // effect resolved.
+  const [visibleLines, setVisibleLines] = React.useState(0);
+  const [isTyping, setIsTyping] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -66,15 +71,14 @@ export function EditorMockup() {
 
     // Below this width the code panel is the ONLY visible column (the
     // file explorer and preview panel are hidden — see the lg:grid-cols
-    // layout below), so a slow line-by-line typewriter effect there
-    // was the most visible source of "the mockup takes too long" and
-    // directly contradicts writing everything in parallel on mobile.
-    // On these screens, skip straight to the fully-typed state.
-    const isNarrowViewport = window.matchMedia("(max-width: 1023px)").matches;
+    // layout below). The typewriter effect is DESKTOP-ONLY, full stop —
+    // on mobile every line is always rendered at once via the
+    // `mobile-instant-code` CSS class further down, independent of
+    // this check's timing.
+    const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
 
-    if (prefersReducedMotion || isNarrowViewport) {
-      setVisibleLines(CODE_LINES.length);
-      return;
+    if (prefersReducedMotion || !isDesktop) {
+      return; // isTyping stays false; all lines render via CSS, always
     }
 
     // Desktop only, and only once actually scrolled into view — no
@@ -84,6 +88,7 @@ export function EditorMockup() {
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
     const runTypewriter = () => {
+      setIsTyping(true);
       setVisibleLines(0);
       const BATCH_SIZE = 3;
       const BATCH_INTERVAL_MS = 55;
@@ -93,6 +98,7 @@ export function EditorMockup() {
         setVisibleLines(current);
         if (current >= CODE_LINES.length && intervalId) {
           clearInterval(intervalId);
+          setIsTyping(false); // hand back to the "always fully shown" CSS path
         }
       }, BATCH_INTERVAL_MS);
     };
@@ -196,8 +202,12 @@ export function EditorMockup() {
             </div>
           </div>
           <div className="flex-1 overflow-x-auto overflow-y-hidden p-3 font-mono-tech text-[11px] leading-[1.6] xs:p-4 xs:text-[12.5px] xs:leading-[1.65]">
-            {CODE_LINES.slice(0, visibleLines).map((line) => (
-              <div key={line.n} className="flex w-max min-w-full">
+            {CODE_LINES.map((line, i) => (
+              <div
+                key={line.n}
+                data-typed={!isTyping || i < visibleLines}
+                className="mockup-code-line flex w-max min-w-full"
+              >
                 <span className="w-6 shrink-0 select-none text-right pr-3 text-tertiary/60">
                   {line.n}
                 </span>
@@ -207,7 +217,7 @@ export function EditorMockup() {
                       {tok.v}
                     </span>
                   ))}
-                  {line.n === CODE_LINES[visibleLines - 1]?.n && (
+                  {isTyping && i === visibleLines - 1 && (
                     <span className="ml-0.5 inline-block h-[14px] w-[7px] translate-y-[2px] animate-blink-caret bg-accent align-middle" />
                   )}
                 </span>

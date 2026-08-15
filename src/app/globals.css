@@ -105,23 +105,26 @@ body {
   overflow-x: hidden;
   width: 100%;
   max-width: 100vw;
-  /* Restores native inertial ("momentum") scrolling on iOS Safari.
-     Without this, scrolling inside any element can fall back to a
-     step-by-step, non-inertial scroll that feels noticeably janky
-     compared to the rest of the OS. */
-  -webkit-overflow-scrolling: touch;
-  /* Stops the whole page from visually "rubber-banding"/bouncing past
-     its own top/bottom edge on touch devices, and prevents a scroll
-     gesture from propagating to (and jankily triggering) a pull-to-
-     refresh or a parent scroll container. */
-  overscroll-behavior-y: none;
 }
 
-/* Applies smooth inertial scrolling inside any element that scrolls
-   on its own (e.g. the dashboard's <main> content area, or any
-   overflow-x-auto code block), not just the page as a whole. */
-* {
-  -webkit-overflow-scrolling: touch;
+/* Touch-scroll refinements — scoped to ACTUAL touch devices only via
+   (pointer: coarse), never applied on desktop/laptop. An earlier
+   version of this rule applied unconditionally to body and to every
+   element via `*`, which broke normal trackpad/mouse-wheel scrolling
+   on laptops: `overscroll-behavior-y: none` in particular can block
+   scroll chaining in some desktop browser/trackpad combinations
+   (the page can feel "stuck" or refuse to scroll), and
+   `-webkit-overflow-scrolling: touch` has no meaning outside iOS
+   Safari but was still being applied to every element on every
+   device, which is unnecessary and was likely contributing to the
+   same problem. `contain` (not `none`) is used below since it still
+   stops mobile pull-to-refresh/bounce-chaining without blocking
+   ordinary scroll propagation the way `none` can. */
+@media (pointer: coarse) {
+  body {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
 }
 
 /* ---------- Scrollbar ---------- */
@@ -296,5 +299,29 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────
+   EDITOR MOCKUP — code line reveal
+   Every line is always present in the DOM (see editor-mockup.tsx);
+   this class controls whether a not-yet-"typed" line is hidden.
+   The desktop typewriter effect sets data-typed="false" on lines
+   not yet revealed via React state — but below 1024px, this rule
+   unconditionally forces every line visible regardless of that
+   attribute's value. Because this is a plain CSS @media query, it
+   is resolved synchronously by the browser at layout/paint time,
+   with zero dependency on JavaScript having run yet, on a
+   useEffect's timing, or on matchMedia listener registration order.
+   This is what actually guarantees mobile never shows a partially-
+   typed state, even for a single frame.
+   ──────────────────────────────────────────────────────────── */
+.mockup-code-line[data-typed="false"] {
+  display: none;
+}
+
+@media (max-width: 1023.98px) {
+  .mockup-code-line[data-typed="false"] {
+    display: flex;
   }
 }

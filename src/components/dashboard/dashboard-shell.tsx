@@ -7,6 +7,7 @@ import { X } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
 import { cn } from "@/lib/utils";
+import type { WorkspaceWithRole } from "@/lib/workspace/types";
 
 interface DashboardShellProps {
   user: {
@@ -15,10 +16,11 @@ interface DashboardShellProps {
     image?: string | null;
     username?: string | null;
   };
+  activeWorkspace: WorkspaceWithRole | null;
   children: React.ReactNode;
 }
 
-const TITLES: Record<string, string> = {
+const STATIC_TITLES: Record<string, string> = {
   "/dashboard": "Workspaces",
   "/profile": "Profile",
   "/settings/appearance": "Appearance",
@@ -27,7 +29,26 @@ const TITLES: Record<string, string> = {
   "/settings/danger": "Danger zone",
 };
 
-export function DashboardShell({ user, children }: DashboardShellProps) {
+/**
+ * /w/[slug]/* pages are workspace-scoped rather than static, so their
+ * title can't live in STATIC_TITLES keyed by exact pathname the way
+ * account settings pages do — instead this derives the title from
+ * whichever tab segment follows the slug ("members", "settings", or
+ * nothing for the overview), falling back to the workspace's own name
+ * for the overview tab so the topbar reads e.g. "Acme Corp" rather
+ * than a generic "Overview".
+ */
+function titleForWorkspacePath(pathname: string, workspaceName: string | undefined): string | null {
+  const match = pathname.match(/^\/w\/[^/]+(?:\/([^/]+))?/);
+  if (!match) return null;
+
+  const tab = match[1];
+  if (tab === "members") return "Members";
+  if (tab === "settings") return "Workspace settings";
+  return workspaceName || "Workspace";
+}
+
+export function DashboardShell({ user, activeWorkspace, children }: DashboardShellProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
@@ -42,13 +63,16 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
     };
   }, [mobileOpen]);
 
-  const title = TITLES[pathname] || "KODEO";
+  const title =
+    titleForWorkspacePath(pathname, activeWorkspace?.name) ||
+    STATIC_TITLES[pathname] ||
+    "KODEO";
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg">
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 border-r border-border lg:block">
-        <Sidebar user={user} />
+        <Sidebar user={user} activeWorkspace={activeWorkspace} />
       </aside>
 
       {/* Mobile drawer */}
@@ -77,7 +101,11 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
           >
             <X className="h-4 w-4" />
           </button>
-          <Sidebar user={user} onNavigate={() => setMobileOpen(false)} />
+          <Sidebar
+            user={user}
+            activeWorkspace={activeWorkspace}
+            onNavigate={() => setMobileOpen(false)}
+          />
         </div>
       </div>
 
