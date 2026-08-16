@@ -73,7 +73,13 @@ export default async function ProjectPage({
       </div>
 
       <div className="mt-6">
-        <EditorShell workspaceId={workspace.id} projectId={project.id} canWrite={canWriteFiles} />
+        <EditorShell
+          workspaceId={workspace.id}
+          projectId={project.id}
+          canWrite={canWriteFiles}
+          currentUserId={session.user.id}
+          currentUserName={session.user.name}
+        />
       </div>
     </div>
   );

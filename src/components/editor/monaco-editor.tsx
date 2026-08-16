@@ -4,10 +4,13 @@
 import * as React from "react";
 import dynamic from "next/dynamic";
 import type { OnMount, OnChange, BeforeMount } from "@monaco-editor/react";
+import type { editor as MonacoEditorNS } from "monaco-editor";
 import { Loader2 } from "lucide-react";
 import { KODEO_DARK_THEME, KODEO_MONACO_THEME_ID } from "@/lib/editor/monaco-theme";
 import { getLanguageForFile } from "@/lib/filesystem/types";
 import { DEFAULT_EDITOR_PREFERENCES, type EditorPreferences } from "@/lib/editor/preferences";
+import type { CollabProvider } from "@/lib/collab/collab-provider";
+import { useMonacoBinding } from "@/lib/collab/use-monaco-binding";
 
 /**
  * Monaco only runs in the browser (it reaches for `window`/`navigator`
@@ -38,6 +41,17 @@ interface KodeoMonacoEditorProps {
   revealLine?: number | null;
   /** Called immediately after a non-null revealLine has been acted on — the parent (editor-shell.tsx) uses this to clear the tab's revealLine in the tabs store. */
   onRevealHandled?: () => void;
+  /**
+   * Part 4 — when present, this tab's content is bound live to the
+   * given CollabProvider's shared Y.Text via y-monaco's
+   * MonacoBinding (see use-monaco-binding.ts) instead of being driven
+   * by the plain controlled `value`/`onChange` pair above. `value`/
+   * `onChange` still work exactly as before when this is omitted —
+   * Part 4 is additive, not a replacement for the Part 3 plain-buffer
+   * path (used as an automatic fallback whenever collaboration is
+   * unavailable — see editor-shell.tsx's `unavailable` handling).
+   */
+  collabProvider?: CollabProvider | null;
 }
 
 /**
@@ -51,6 +65,19 @@ interface KodeoMonacoEditorProps {
  * switching away and back, exactly like a real IDE. Swapping a single
  * controlled `value` on tab change (the naive approach) would lose
  * all of that on every switch.
+ *
+ * Part 4: when `collabProvider` is supplied, MonacoBinding takes over
+ * as the actual source of truth for this model's content — Yjs
+ * applies both local keystrokes and remote updates to the same
+ * model, and Monaco's undo stack becomes Yjs-aware (undo/redo
+ * correctly skip over remote collaborators' interleaved edits,
+ * y-monaco's own well-known behavior). The `value` prop becomes
+ * inert while a binding is active; `onChange` still fires (Monaco
+ * itself doesn't know the difference between a local keystroke and a
+ * binding-applied remote edit), so callers relying on onChange for
+ * non-collaborative bookkeeping (e.g. Part 3c's dirty-tracking) keep
+ * working unmodified — see editor-shell.tsx for how dirty-state and
+ * auto-save behave once a file is collaboratively bound.
  */
 export function KodeoMonacoEditor({
   filePath,
@@ -61,12 +88,63 @@ export function KodeoMonacoEditor({
   onSaveShortcut,
   revealLine,
   onRevealHandled,
+  collabProvider = null,
 }: KodeoMonacoEditorProps) {
   const onSaveShortcutRef = React.useRef(onSaveShortcut);
   onSaveShortcutRef.current = onSaveShortcut;
   const onRevealHandledRef = React.useRef(onRevealHandled);
   onRevealHandledRef.current = onRevealHandled;
   const editorRef = React.useRef<Parameters<OnMount>[0] | null>(null);
+  const [mountedEditor, setMountedEditor] = React.useState<MonacoEditorNS.IStandaloneCodeEditor | null>(null);
+
+  // Binds this editor instance's model to the collab provider's
+  // shared Y.Text, and enforces readOnly independently of the
+  // MonacoBinding itself — see the hook's own doc comment for why
+  // both matter (server-side enforcement + local UX both need it).
+  useMonacoBinding(mountedEditor, collabProvider, readOnly);
+
+  // Broadcasts this user's own cursor position + selection range into
+  // awareness on every Monaco cursor/selection change, so remote
+  // peers' MonacoBinding instances render this user's cursor via the
+  // yRemoteSelection*/-<clientId> decorations y-monaco applies
+  // automatically from awareness state — see remote-cursor-styles.ts
+  // for how those decorations are styled. Only wired when a
+  // collabProvider is present; otherwise there's no awareness
+  // instance to publish into.
+  React.useEffect(() => {
+    if (!mountedEditor || !collabProvider) return;
+
+    function publishCursor() {
+      const editor = mountedEditor;
+      if (!editor) return;
+      const position = editor.getPosition();
+      const selection = editor.getSelection();
+      collabProvider!.setLocalAwarenessField(
+        "cursor",
+        position ? { lineNumber: position.lineNumber, column: position.column } : null
+      );
+      collabProvider!.setLocalAwarenessField(
+        "selection",
+        selection && !selection.isEmpty()
+          ? {
+              startLineNumber: selection.startLineNumber,
+              startColumn: selection.startColumn,
+              endLineNumber: selection.endLineNumber,
+              endColumn: selection.endColumn,
+            }
+          : null
+      );
+    }
+
+    const cursorSub = mountedEditor.onDidChangeCursorPosition(publishCursor);
+    const selectionSub = mountedEditor.onDidChangeCursorSelection(publishCursor);
+    publishCursor();
+
+    return () => {
+      cursorSub.dispose();
+      selectionSub.dispose();
+    };
+  }, [mountedEditor, collabProvider]);
 
   const handleBeforeMount: BeforeMount = (monaco) => {
     monaco.editor.defineTheme(KODEO_MONACO_THEME_ID, KODEO_DARK_THEME);
@@ -74,6 +152,7 @@ export function KodeoMonacoEditor({
 
   const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
+    setMountedEditor(editor);
 
     // Cmd/Ctrl+S inside the editor is intercepted here rather than
     // only relying on the document-level listener, so Monaco's own
@@ -116,6 +195,14 @@ export function KodeoMonacoEditor({
       key={filePath /* forces a clean remount if the path itself changes identity in a way Monaco's internal diffing wouldn't catch, e.g. after a rename swaps which model backs this pane */}
       path={filePath}
       language={getLanguageForFile(filePath)}
+      // While a collab binding is active, MonacoBinding owns the
+      // model's content from the moment it attaches (it immediately
+      // overwrites the model with the Y.Text's current value on
+      // construction) — passing the stale `value` here for that first
+      // render is harmless (it's replaced within the same tick) and
+      // keeps this component's prop contract identical whether or not
+      // collaboration is active, rather than branching the whole
+      // <MonacoEditor> element on collabProvider's presence.
       value={value}
       theme={KODEO_MONACO_THEME_ID}
       beforeMount={handleBeforeMount}

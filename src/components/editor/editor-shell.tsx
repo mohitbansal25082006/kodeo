@@ -9,9 +9,13 @@ import { KodeoMonacoEditor } from "@/components/editor/monaco-editor";
 import { SearchModal } from "@/components/editor/search-modal";
 import { PreferencesPanel } from "@/components/editor/preferences-panel";
 import { SaveStatusIndicator } from "@/components/editor/save-status";
+import { CollabStatusIndicator } from "@/components/editor/collab-status-indicator";
+import { PresenceStack } from "@/components/editor/presence-stack";
 import { useTabs, type EditorTab } from "@/lib/editor/tabs-store";
 import { useAutoSave } from "@/lib/editor/use-auto-save";
 import { useEditorShortcuts } from "@/lib/editor/use-editor-shortcuts";
+import { useCollab } from "@/lib/collab/use-collab";
+import { usePresence } from "@/lib/collab/use-presence";
 import { DEFAULT_EDITOR_PREFERENCES, type EditorPreferences } from "@/lib/editor/preferences";
 import type { ProjectNodeTree } from "@/lib/filesystem/types";
 
@@ -19,6 +23,9 @@ interface EditorShellProps {
   workspaceId: string;
   projectId: string;
   canWrite: boolean;
+  /** Part 4 — the signed-in user's own id/name, needed to seed this client's own awareness identity before the collab server's round-trip confirms it (see use-collab.ts). Passed down from the server component (project page) rather than re-fetched client-side, since the page already has the session. */
+  currentUserId: string;
+  currentUserName: string;
 }
 
 /**
@@ -27,13 +34,19 @@ interface EditorShellProps {
  * (useAutoSave) against Part 3a's content-PATCH endpoint, global
  * shortcuts (useEditorShortcuts), the search/quick-open modal, the
  * preferences panel, and session restoration against the
- * `editorPrefs` column Part 3a's migration reserved. Nothing below
- * this component needed to change to support any of that — the
- * seams were deliberately left ready in 3a/3b (the PATCH endpoint's
- * content-only branch, the `onSaveShortcut` prop, `editorPrefs`)
- * specifically so this part could be pure wiring, not rearchitecture.
+ * `editorPrefs` column Part 3a's migration reserved.
+ *
+ * Part 4 adds real-time collaboration for the ACTIVE tab only — see
+ * the "Part 4" section below for why only one tab at a time holds a
+ * live connection. Every other Part 3c behavior (auto-save, session
+ * restore, search, shortcuts) is unchanged and continues to run
+ * exactly as before; collaboration layers on top rather than
+ * replacing any of it. If the collab server is unreachable or not
+ * configured for this deployment, editing transparently falls back to
+ * Part 3c's plain buffer + auto-save path — collaboration is always
+ * an enhancement, never a hard requirement to edit a file.
  */
-export function EditorShell({ workspaceId, projectId, canWrite }: EditorShellProps) {
+export function EditorShell({ workspaceId, projectId, canWrite, currentUserId, currentUserName }: EditorShellProps) {
   const {
     tabs,
     activeTabId,
@@ -63,6 +76,28 @@ export function EditorShell({ workspaceId, projectId, canWrite }: EditorShellPro
 
   const nodesBaseUrl = `/api/workspaces/${workspaceId}/projects/${projectId}/nodes`;
   const sessionUrl = `/api/workspaces/${workspaceId}/projects/${projectId}/session`;
+
+  // ── Part 4: real-time collaboration for the active tab only ──────
+  // Only the tab currently on screen gets a live WebSocket connection
+  // — every open-but-inactive tab still holds its Part 3c buffer/
+  // dirty-tracking exactly as before, and picks up a fresh collab
+  // connection (which immediately syncs to the latest content, Yjs's
+  // whole point) the moment it becomes active. This bounds the number
+  // of simultaneous connections a single user's browser holds to
+  // exactly one, regardless of how many tabs they have open — an
+  // important cost/scale property for the collab server, not just a
+  // simplification.
+  const { provider: collabProvider, status: collabStatus, readOnly: collabReadOnly, unavailable: collabUnavailable } =
+    useCollab({
+      enabled: activeTab !== null && !activeTab.loading && !activeTab.loadError,
+      workspaceId,
+      projectId,
+      nodeId: activeTab?.nodeId ?? "",
+      localUserId: currentUserId,
+      localUserName: currentUserName,
+    });
+
+  const presenceUsers = usePresence(collabProvider, activeTab?.nodeId ?? "no-active-tab");
 
   // ── Load preferences once on mount ──────────────────────────────
   React.useEffect(() => {
@@ -189,6 +224,17 @@ export function EditorShell({ workspaceId, projectId, canWrite }: EditorShellPro
   }, [tabs.map((t) => t.nodeId).join(","), activeTabId, sessionRestored]);
 
   // ── Auto-save ────────────────────────────────────────────────────
+  // Unchanged from Part 3c, and deliberately kept running even when a
+  // collab connection is active: the collab server persists to the
+  // SAME project_node.content column (see ws-server's
+  // src/lib/persistence.ts) on its own debounce, so the two writers
+  // never conflict on shape, only on timing — worst case, one of them
+  // writes a very slightly newer or older snapshot of what's already
+  // converged content, never a corrupt merge. Keeping this path alive
+  // is also exactly what makes the "collaboration unavailable, fall
+  // back to plain editing" behavior automatic rather than a special
+  // case: a tab with no collabProvider bound behaves precisely as it
+  // did in Part 3c, because nothing about this hook changed.
   const { scheduleSave, flush, getStatus, getError } = useAutoSave({
     delayMs: preferences.autoSaveDelayMs,
     onSave: async (nodeId, content) => {
@@ -206,6 +252,13 @@ export function EditorShell({ workspaceId, projectId, canWrite }: EditorShellPro
     onSaved: (nodeId, content) => markSaved(nodeId, content),
   });
 
+  // While a tab is collaboratively bound, its content changes arrive
+  // via MonacoBinding directly mutating the model — Monaco's onChange
+  // still fires for those (Monaco can't distinguish a binding-applied
+  // edit from a local keystroke), so this handler and Part 3c's
+  // dirty-tracking/auto-save scheduling continue to work completely
+  // unmodified. The buffer this writes into useTabs is a faithful
+  // mirror of the Yjs-converged text either way.
   function handleBufferChange(tab: EditorTab, value: string) {
     editTab(tab.nodeId, value);
     scheduleSave(tab.nodeId, value);
@@ -275,6 +328,15 @@ export function EditorShell({ workspaceId, projectId, canWrite }: EditorShellPro
   const activeSaveStatus = activeTab ? getStatus(activeTab.nodeId) : "idle";
   const activeSaveError = activeTab ? getError(activeTab.nodeId) : null;
 
+  // A tab is "collaboratively live" once: collaboration is configured
+  // for this deployment (not collabUnavailable), a provider exists
+  // for the active tab, and it's actually this tab's own provider
+  // (guards a one-render window during a fast tab switch where
+  // `collabProvider` from the previous tab could otherwise briefly be
+  // handed to the new tab's <KodeoMonacoEditor>).
+  const showCollabForActiveTab =
+    !collabUnavailable && collabProvider !== null && activeTab !== null;
+
   return (
     <div className="flex h-[calc(100vh-13rem)] min-h-[480px] overflow-hidden rounded-2xl border border-border bg-bg-elevated">
       <div className="w-64 shrink-0 border-r border-border">
@@ -307,7 +369,10 @@ export function EditorShell({ workspaceId, projectId, canWrite }: EditorShellPro
               onCloseAll={closeAll}
             />
           </div>
-          <div className="flex shrink-0 items-center gap-1 px-2">
+          <div className="flex shrink-0 items-center gap-3 px-2">
+            {showCollabForActiveTab && (
+              <PresenceStack users={presenceUsers} status={collabStatus} className="hidden md:flex" />
+            )}
             <button
               onClick={() => setSearchState({ open: true, mode: "files" })}
               className="flex h-7 w-7 items-center justify-center rounded-lg text-tertiary transition-colors hover:bg-surface hover:text-primary"
@@ -356,6 +421,13 @@ export function EditorShell({ workspaceId, projectId, canWrite }: EditorShellPro
             // re-fetches or re-mounts Monaco, it just toggles which
             // already-live editor is on screen, so cursor/scroll/undo
             // state per file survives switching away and back.
+            //
+            // Part 4: collabProvider is only ever passed to the
+            // ACTIVE tab's editor instance — every inactive tab
+            // renders with collabProvider={null} and stays on the
+            // plain Part 3c buffer, exactly matching the "one live
+            // connection at a time" behavior described above the
+            // useCollab() call.
             tabs.map((tab) => (
               <div key={tab.nodeId} className="absolute inset-0" style={{ display: tab.nodeId === activeTabId ? "block" : "none" }}>
                 {!tab.loading && !tab.loadError && (
@@ -363,11 +435,12 @@ export function EditorShell({ workspaceId, projectId, canWrite }: EditorShellPro
                     filePath={tab.path}
                     value={tab.buffer}
                     onChange={(value) => handleBufferChange(tab, value)}
-                    readOnly={!canWrite}
+                    readOnly={!canWrite || (tab.nodeId === activeTabId && showCollabForActiveTab && collabReadOnly)}
                     preferences={preferences}
                     onSaveShortcut={handleSaveActive}
                     revealLine={tab.revealLine}
                     onRevealHandled={() => clearReveal(tab.nodeId)}
+                    collabProvider={tab.nodeId === activeTabId && showCollabForActiveTab ? collabProvider : null}
                   />
                 )}
               </div>
@@ -376,7 +449,10 @@ export function EditorShell({ workspaceId, projectId, canWrite }: EditorShellPro
         </div>
 
         <div className="flex items-center justify-between border-t border-border px-3 py-1.5">
-          <span className="truncate font-mono-tech text-[11px] text-tertiary">{activeTab?.path ?? ""}</span>
+          <div className="flex items-center gap-3 truncate">
+            <span className="truncate font-mono-tech text-[11px] text-tertiary">{activeTab?.path ?? ""}</span>
+            {showCollabForActiveTab && <CollabStatusIndicator status={collabStatus} />}
+          </div>
           <SaveStatusIndicator status={activeSaveStatus} error={activeSaveError} />
         </div>
       </div>
