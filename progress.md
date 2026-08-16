@@ -137,15 +137,73 @@ src/components/project/create-project-modal.tsx, projects-grid.tsx, project-acti
 
 ---
 
+## Part 3a — File System: Files, Folders, Explorer
+
+**Features:** Introduces the `Project → File System` layer — a single self-referencing `project_node` table models both files and folders ("adjacency list" via `parentId`), the standard right-sized model for a dynamic, user-editable tree vs. `ltree`/materialized paths. `ON DELETE CASCADE` means deleting a folder deletes its whole subtree in one statement. A DB trigger maintains a cached `path` column on every insert/rename/move, cascading the new prefix to descendants; a second trigger rejects moving a folder into its own subtree, making cycles structurally impossible regardless of which code path writes. Sibling names unique case-insensitively per parent (two partial indexes, root vs. non-root, since Postgres unique indexes treat every `NULL` as distinct). Full CRUD API (create, rename, move, delete, fetch tree, fetch one file's content) scoped through the same workspace-membership 404-not-403 guarantee Part 2 established. File explorer UI — recursive tree, expand/collapse, per-node context menu (new file/folder, rename, delete), wired into the project page in place of Part 2c's placeholder, backed by a read-only content preview pane (deliberately temporary — see Part 3b).
+
+**Files created:**
+```
+db/migrations/006_project_nodes.sql
+src/lib/filesystem/types.ts, queries.ts, permissions.ts, client-tree.ts
+src/app/api/workspaces/[workspaceId]/projects/[projectId]/nodes/route.ts (GET/POST)
+src/app/api/workspaces/[workspaceId]/projects/[projectId]/nodes/[nodeId]/route.ts (GET/PATCH/DELETE)
+src/components/editor/file-tree.tsx, file-explorer.tsx, create-node-modal.tsx,
+  rename-node-modal.tsx, editor-shell.tsx
+```
+
+**Files modified:** `src/app/(app)/w/[slug]/[projectSlug]/page.tsx` (renders `<EditorShell>` in place of the Part 2c placeholder)
+
+**Design notes:** File content lives directly on `project_node.content` (`TEXT`), not object storage — right-sized for source files; binary/asset uploads are explicitly out of scope and would need a separate table. `ProjectNodeSummary` (used everywhere the tree renders) omits `content` on purpose — shipping every file's full text on every tree fetch doesn't scale once a project has real file counts, so content is fetched per-file, on demand, when a tab opens. Filesystem permissions mirror Part 2c's project permissions (editor+ to write, any member to read) rather than introducing a parallel rank system.
+
+---
+
+## Part 3b — Monaco Editor, Tabs, Syntax Highlighting
+
+**Features:** Replaces Part 3a's read-only preview pane with a real multi-tab Monaco editor. `@monaco-editor/react`, dynamically imported with `ssr: false` since Monaco touches `window` at import time and cannot run server-side. Uses Monaco's `path` prop so the editor creates one text model per open file — switching tabs reuses that file's existing model instead of recreating it, so undo history, cursor position, and scroll offset all survive switching tabs away and back, unlike the naive approach of swapping a single controlled `value`. A hand-built Monaco theme matches KODEO's own dark palette instead of stock `vs-dark`. Tab bar — active state, per-tab dirty dot, close (hover-revealed, swaps with the dirty dot), right-click menu (close / close others / close all). Every open tab mounts its own editor instance (only the active one is visible via `display: none` on the rest), which is what makes the model-per-path caching actually pay off across tab switches.
+
+**Files created:**
+```
+src/lib/editor/tabs-store.ts, monaco-theme.ts
+src/components/editor/monaco-editor.tsx, tab-bar.tsx
+```
+
+**Files modified:** `src/components/editor/editor-shell.tsx` (tab bar + Monaco pane replacing the `<pre>` preview), `file-explorer.tsx` (adds optional `onNodeRenamed`/`onNodeDeleted` callbacks so an open tab stays in sync with explorer actions — backward compatible, no-op if unused)
+
+**Design notes:** Nothing persists edits in this part — Cmd/Ctrl+S is intercepted inside the Monaco wrapper (`onSaveShortcut` prop) but has no handler wired yet; that's Part 3c. No tab restoration across reloads yet either — every session starts empty; the `user.editorPrefs` JSONB column Part 3a's migration reserved is where Part 3c persists session + preferences. `readOnly` is threaded from the same `canWrite` (editor+) check as file creation — viewers get full syntax highlighting but can't type.
+
+---
+
+## Part 3c — Auto-save, Search, Keyboard Shortcuts, Editor Preferences
+
+**Features:** Debounced auto-save — one independent timer per open file (editing one file never resets or interferes with a pending save on another), writing to Part 3a's content-only `PATCH .../nodes/[nodeId]` branch; a save-status strip along the bottom of the editor shows Saving/Saved/error for the active file, distinct from the tab bar's dirty dot. Cmd/Ctrl+S always flushes immediately regardless of the debounce setting. Command palette (Cmd/Ctrl+P quick-open, Cmd/Ctrl+Shift+F project-wide content search) — one shared modal, two tabs, full keyboard navigation; content search is a plain `ILIKE` scan rather than `tsvector`, since full-text search's stemming/word-boundary tokenization is wrong for searching source code. Document-level keyboard shortcuts (work regardless of where focus is, not just inside Monaco) — save, quick-open, project search, close tab, next/prev tab (Cmd/Ctrl+Tab and Cmd/Ctrl+Alt+arrows), new file. Editor preferences panel — font size, tab size, word wrap, minimap, auto-save delay — persisted per-user to `user.editorPrefs` and applied instantly. Session restoration — which tabs were open and which was active, persisted per-project inside the same `editorPrefs` column, restored on load (best-effort: a since-deleted file is silently dropped from the restored set rather than surfacing an error).
+
+**Files created:**
+```
+src/lib/editor/preferences.ts, queries.ts, use-auto-save.ts, use-editor-shortcuts.ts
+src/lib/filesystem/search.ts
+src/app/api/user/editor-prefs/route.ts (GET/PATCH)
+src/app/api/workspaces/[workspaceId]/projects/[projectId]/session/route.ts (GET/PUT)
+src/app/api/workspaces/[workspaceId]/projects/[projectId]/search/route.ts (GET)
+src/components/editor/search-modal.tsx, preferences-panel.tsx, save-status.tsx
+```
+
+**Files modified:** `src/lib/editor/tabs-store.ts` (adds `revealLine` per tab for search-result jump-to-line, `restoreTabs` for bulk session load, `cycleTab` for next/prev shortcuts), `monaco-editor.tsx` (imports `EditorPreferences` from the shared `preferences.ts` instead of a local stub; adds `revealLine`/`onRevealHandled`), `file-explorer.tsx` (adds `requestNewFileSignal` — an externally-triggerable new-file-modal signal for Cmd/Ctrl+N, same increment-a-counter pattern as `refreshKey`), `editor-shell.tsx` (the wiring hub: loads preferences and the project's saved session on mount, restores tabs, auto-saves on every buffer change, persists the open-tabs set on a short debounce, registers every shortcut, adds the search/preferences buttons and status strip)
+
+**Design notes:** Auto-save delay is a per-user preference (matches how real IDEs scope it), not per-file; setting it to "Off" only disables the debounce; explicit save (Cmd/Ctrl+S, or closing a dirty tab, which flushes first) always still works. Preference and session-bookkeeping writes use fetch-modify-write against the JSONB column rather than a patch operator — acceptable for this low-stakes, single-user, frequently-overwritten data, unlike the transactional guarantees Part 2's ownership/membership writes need. Preferences/session failures are silent by design (defaults or a slightly-stale tab list are the worst case); auto-save failures are the one save-related error surfaced to the user, via the status strip, since that's the one case involving actual file content.
+
+---
+
 ## Current architecture reference
 
 - **Auth:** Better Auth, raw `pg` against Neon Postgres, no ORM. Tables: `user`, `session`, `account`, `verification` (`db/migrations/001_init.sql`).
 - **Avatars:** Multiavatar, generated locally as inline SVG (`@multiavatar/multiavatar`) — no external network call. `src/lib/avatar.ts` + `<UserAvatar>` distinguish this from real OAuth photo URLs. Workspaces and projects reuse the same seed convention via `<WorkspaceIcon>` (`src/components/workspace/workspace-icon.tsx`), falling back to a name-hashed color + initial when no seed is set.
-- **Theming:** 20 themes via CSS variables, applied app-wide (including the logged-out landing page) from the root layout, with a blocking `<head>` script to avoid flash-of-wrong-theme.
+- **Theming:** 20 themes via CSS variables, applied app-wide (including the logged-out landing page) from the root layout, with a blocking `<head>` script to avoid flash-of-wrong-theme. The Monaco editor has its own separate hand-built dark theme (`src/lib/editor/monaco-theme.ts`) matching KODEO's palette, since Monaco's theme system takes a static object rather than reading live CSS variables.
 - **Email:** Resend, KODEO-branded templates in `src/lib/email.ts`. Sends OTPs, account-deletion confirmation, and (as of Part 2c) workspace invitations.
-- **Migrations:** plain `.sql` files in `db/migrations/`, applied in order by `scripts/migrate.mjs` via `npm run db:migrate` — no ORM migration tool. Currently: `001_init`, `002_theme`, `003_username_unique_ci`, `004_workspaces`, `005_invitations_and_projects`.
+- **Migrations:** plain `.sql` files in `db/migrations/`, applied in order by `scripts/migrate.mjs` via `npm run db:migrate` — no ORM migration tool. Currently: `001_init`, `002_theme`, `003_username_unique_ci`, `004_workspaces`, `005_invitations_and_projects`, `006_project_nodes`.
 - **Domain:** `kodeo.website` (migrated from `kodeo.dev` in Part 2c). Canonical origin resolved via `src/lib/site-url.ts`'s `getSiteUrl()`/`buildInviteUrl()`, and via `NEXT_PUBLIC_APP_URL`/`AUTH_URL` for Better Auth's `trustedOrigins`.
-- **Workspace hierarchy:** `User → Workspace → Project`, roles `owner > admin > editor > viewer` (`src/lib/workspace/types.ts`, `permissions.ts`). Workspaces and projects are addressed by slug in routes (`/w/[slug]`, `/w/[slug]/[projectSlug]`); all other resources (members, invitations) are addressed by ID under the workspace. Every workspace-scoped query (`getWorkspaceForUser`, `getWorkspaceBySlugForUser`) folds "doesn't exist" and "not a member" into the same `null`/404, never leaking existence to non-members. Destructive multi-row operations (`createWorkspace`, `transferOwnership`, `acceptInvitation`) run inside explicit `BEGIN`/`COMMIT`/`ROLLBACK` transactions rather than sequential `pool.query` calls, so partial states (e.g. a workspace with no owner, or two simultaneous owners) are never observable.
+- **Workspace hierarchy:** `User → Workspace → Project`, roles `owner > admin > editor > viewer` (`src/lib/workspace/types.ts`, `permissions.ts`). Workspaces and projects are addressed by slug in routes (`/w/[slug]`, `/w/[slug]/[projectSlug]`); all other resources (members, invitations, file nodes) are addressed by ID under the workspace/project. Every workspace-scoped query (`getWorkspaceForUser`, `getWorkspaceBySlugForUser`) folds "doesn't exist" and "not a member" into the same `null`/404, never leaking existence to non-members. Destructive multi-row operations (`createWorkspace`, `transferOwnership`, `acceptInvitation`) run inside explicit `BEGIN`/`COMMIT`/`ROLLBACK` transactions rather than sequential `pool.query` calls, so partial states (e.g. a workspace with no owner, or two simultaneous owners) are never observable.
+- **File system:** `Project → File System` via `project_node` (adjacency list, `parentId` self-reference, `ON DELETE CASCADE` for whole-subtree deletes). Files and folders share one table, discriminated by `type`. A DB trigger keeps a cached `path` column correct under rename/move (cascading to descendants); a second trigger makes re-parenting a folder into its own subtree structurally impossible. File content lives directly on the row (`TEXT`) — no object storage; binary assets are out of scope. Filesystem permissions (`src/lib/filesystem/permissions.ts`) mirror the project permission bar (editor+ to write, any member to read) rather than introducing a second rank system.
+- **Editor:** Monaco via `@monaco-editor/react`, dynamically imported client-only. One editor instance per open tab (all mounted, only the active one visible), each backed by its own Monaco model keyed on file path, so undo/cursor/scroll state survives tab switches. Tab/buffer state lives in `useTabs` (`src/lib/editor/tabs-store.ts`); auto-save (`use-auto-save.ts`) debounces per-file writes back to the content-only branch of the node `PATCH` endpoint. Editor preferences and per-project tab sessions persist to a single `user.editorPrefs` JSONB column (reserved by Part 3a's migration, used starting Part 3c) via fetch-modify-write. In-project search (filenames + file contents) is a plain `ILIKE`-based query, not `tsvector`, since source-code search shouldn't be word-stemmed.
 
 ---
 
@@ -165,3 +223,4 @@ src/components/project/create-project-modal.tsx, projects-grid.tsx, project-acti
 - `/w/[slug]/*` routes were reachable without a session → missing from `middleware.ts`'s protected-routes matcher since Part 2b introduced them; added in Part 2c.
 - Invite link lost mid-signup → `register`/`verify-email`/`onboarding` didn't carry a `next` param through the mandatory onboarding step, so anyone without an existing account who accepted an invitation landed on `/dashboard` instead of back at `/invite/[token]`; all three pages now round-trip `next` (with an open-redirect guard at the point onboarding consumes it).
 - `relation "project" does not exist` (Postgres `42P01`) on `/w/[slug]` → Part 2c's migration (`005_invitations_and_projects.sql`) hadn't been run yet; the app assumes migrations are applied ahead of time and doesn't create tables lazily. Run `npm run db:migrate` after pulling Part 2c.
+- A zod tuple-typing issue in Part 3c's editor-preferences PATCH route (`z.union` over a `.map()`-derived array doesn't satisfy TypeScript's statically-known-length tuple requirement) → rewritten as `.refine()` checks against the same shared option arrays used by the preferences panel UI, so there's still exactly one place each option list is defined.

@@ -7,6 +7,7 @@ import type { OnMount, OnChange, BeforeMount } from "@monaco-editor/react";
 import { Loader2 } from "lucide-react";
 import { KODEO_DARK_THEME, KODEO_MONACO_THEME_ID } from "@/lib/editor/monaco-theme";
 import { getLanguageForFile } from "@/lib/filesystem/types";
+import { DEFAULT_EDITOR_PREFERENCES, type EditorPreferences } from "@/lib/editor/preferences";
 
 /**
  * Monaco only runs in the browser (it reaches for `window`/`navigator`
@@ -24,20 +25,6 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react").then((m) => m.
   ),
 });
 
-export interface EditorPreferences {
-  fontSize: number;
-  tabSize: number;
-  wordWrap: boolean;
-  minimap: boolean;
-}
-
-export const DEFAULT_EDITOR_PREFERENCES: EditorPreferences = {
-  fontSize: 13,
-  tabSize: 2,
-  wordWrap: true,
-  minimap: false,
-};
-
 interface KodeoMonacoEditorProps {
   /** The file's project-relative path, e.g. "src/lib/utils.ts" — passed straight through as Monaco's `path` prop. */
   filePath: string;
@@ -45,8 +32,12 @@ interface KodeoMonacoEditorProps {
   onChange: (value: string) => void;
   readOnly?: boolean;
   preferences?: EditorPreferences;
-  /** Fired on Cmd/Ctrl+S — Part 3c wires this to the auto-save flush; Part 3b just exposes the hook. */
+  /** Fired on Cmd/Ctrl+S while the editor has focus. The document-level shortcut in use-editor-shortcuts.ts handles Cmd/Ctrl+S everywhere else; this one covers the case where Monaco itself would otherwise eat the keystroke before it bubbles up. */
   onSaveShortcut?: () => void;
+  /** 1-based line number to scroll to and highlight on mount/update — set when the pane opens as the result of a search-result click (search-modal.tsx). Consumed once; onRevealHandled tells the parent to clear it so it doesn't re-trigger on a later plain tab-switch. */
+  revealLine?: number | null;
+  /** Called immediately after a non-null revealLine has been acted on — the parent (editor-shell.tsx) uses this to clear the tab's revealLine in the tabs store. */
+  onRevealHandled?: () => void;
 }
 
 /**
@@ -68,28 +59,57 @@ export function KodeoMonacoEditor({
   readOnly = false,
   preferences = DEFAULT_EDITOR_PREFERENCES,
   onSaveShortcut,
+  revealLine,
+  onRevealHandled,
 }: KodeoMonacoEditorProps) {
   const onSaveShortcutRef = React.useRef(onSaveShortcut);
   onSaveShortcutRef.current = onSaveShortcut;
+  const onRevealHandledRef = React.useRef(onRevealHandled);
+  onRevealHandledRef.current = onRevealHandled;
+  const editorRef = React.useRef<Parameters<OnMount>[0] | null>(null);
 
   const handleBeforeMount: BeforeMount = (monaco) => {
     monaco.editor.defineTheme(KODEO_MONACO_THEME_ID, KODEO_DARK_THEME);
   };
 
   const handleMount: OnMount = (editor, monaco) => {
-    // Cmd/Ctrl+S inside the editor is intercepted here rather than at
-    // the document level so it only fires while the editor actually
-    // has focus, and so Monaco's own keybinding system (which already
-    // owns every other Ctrl/Cmd shortcut inside the editor) is the
-    // single source of truth for what a keypress does while typing.
+    editorRef.current = editor;
+
+    // Cmd/Ctrl+S inside the editor is intercepted here rather than
+    // only relying on the document-level listener, so Monaco's own
+    // keybinding system (which already owns every other Ctrl/Cmd
+    // shortcut inside the editor, e.g. Ctrl+F for in-file find) is
+    // the single source of truth for what a keypress does while
+    // typing, and the save reliably fires even if something inside
+    // Monaco would otherwise have swallowed the event first.
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       onSaveShortcutRef.current?.();
     });
+
+    if (revealLine) {
+      editor.revealLineInCenter(revealLine);
+      editor.setPosition({ lineNumber: revealLine, column: 1 });
+      editor.focus();
+      onRevealHandledRef.current?.();
+    }
   };
 
   const handleChange: OnChange = (newValue) => {
     onChange(newValue ?? "");
   };
+
+  // Jump to a new line when revealLine changes on an already-mounted
+  // editor (e.g. clicking a second search result for a file that's
+  // already open) — handleMount only covers the initial mount.
+  React.useEffect(() => {
+    if (revealLine && editorRef.current) {
+      editorRef.current.revealLineInCenter(revealLine);
+      editorRef.current.setPosition({ lineNumber: revealLine, column: 1 });
+      editorRef.current.focus();
+      onRevealHandledRef.current?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealLine]);
 
   return (
     <MonacoEditor

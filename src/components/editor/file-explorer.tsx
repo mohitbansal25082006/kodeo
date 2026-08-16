@@ -20,15 +20,25 @@ interface FileExplorerProps {
   refreshKey?: number;
   /**
    * Fired after a successful rename, with the node's new name/path.
-   * Added in Part 3b so the editor shell can keep an already-open
-   * tab's title and Monaco model path in sync with the tree — the
-   * explorer itself has no idea which files are open as tabs, so it
-   * just reports what changed and lets the shell decide what to do
-   * with that information.
+   * Lets the editor shell keep an already-open tab's title and Monaco
+   * model path in sync with the tree — the explorer itself has no
+   * idea which files are open as tabs, so it just reports what
+   * changed and lets the shell decide what to do with that
+   * information.
    */
   onNodeRenamed?: (nodeId: string, name: string, path: string) => void;
   /** Fired after a successful delete, so an open tab pointing at the deleted file can be closed rather than left editing a ghost. */
   onNodeDeleted?: (nodeId: string) => void;
+  /**
+   * Bumped by the parent to open the "new file at project root" modal
+   * from outside the explorer — what Cmd/Ctrl+N (use-editor-shortcuts.ts)
+   * calls, since the shortcut can fire while focus is anywhere in the
+   * shell, not just inside the explorer panel itself. Same
+   * increment-a-counter pattern as refreshKey, for the same reason: a
+   * plain boolean can't signal "do this again" for a second press
+   * with the same intended value.
+   */
+  requestNewFileSignal?: number;
 }
 
 type PendingCreate = { parentId: string | null; type: "file" | "folder" } | null;
@@ -42,6 +52,7 @@ export function FileExplorer({
   refreshKey,
   onNodeRenamed,
   onNodeDeleted,
+  requestNewFileSignal,
 }: FileExplorerProps) {
   const [nodes, setNodes] = React.useState<ProjectNodeSummary[] | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -74,6 +85,20 @@ export function FileExplorer({
     fetchTree();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchTree, refreshKey]);
+
+  // Skip the signal's initial value (0/undefined) so this doesn't pop
+  // the create modal open the moment the editor first mounts.
+  const lastNewFileSignal = React.useRef(requestNewFileSignal);
+  React.useEffect(() => {
+    if (
+      canWrite &&
+      requestNewFileSignal !== undefined &&
+      requestNewFileSignal !== lastNewFileSignal.current
+    ) {
+      lastNewFileSignal.current = requestNewFileSignal;
+      setPendingCreate({ parentId: null, type: "file" });
+    }
+  }, [requestNewFileSignal, canWrite]);
 
   const tree = React.useMemo(() => (nodes ? buildTreeClient(nodes) : []), [nodes]);
 
