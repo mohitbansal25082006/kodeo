@@ -2,13 +2,15 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { ArrowLeft, FolderGit2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getWorkspaceBySlugForUser } from "@/lib/workspace/queries";
 import { getProjectBySlug } from "@/lib/project/queries";
 import { WorkspaceIcon } from "@/components/workspace/workspace-icon";
 import { ProjectActions } from "@/components/project/project-actions";
+import { EditorShell } from "@/components/editor/editor-shell";
 import { canEditProject, canDeleteProject } from "@/lib/workspace/permissions";
+import { canCreateNode } from "@/lib/filesystem/permissions";
 
 export default async function ProjectPage({
   params,
@@ -27,6 +29,7 @@ export default async function ProjectPage({
 
   const canEdit = canEditProject(workspace.role);
   const canDelete = canDeleteProject(workspace.role, session.user.id, project.createdById);
+  const canWriteFiles = canCreateNode(workspace.role);
 
   return (
     <div>
@@ -69,18 +72,8 @@ export default async function ProjectPage({
         )}
       </div>
 
-      {/* Project content (files, tasks, whatever KODEO's actual project
-          workspace ends up holding) is out of scope for Part 2 — this
-          placeholder just establishes the route and permission-gated
-          shell for future parts to build inside. */}
-      <div className="mt-8 flex flex-col items-center rounded-2xl border border-dashed border-border bg-surface/40 px-6 py-16 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-bg-elevated">
-          <FolderGit2 className="h-6 w-6 text-tertiary" />
-        </div>
-        <h3 className="mt-5 text-lg font-semibold text-primary">Nothing here yet</h3>
-        <p className="mt-2 max-w-sm text-sm text-secondary">
-          This is where {project.name}&apos;s content will live in a future update.
-        </p>
+      <div className="mt-6">
+        <EditorShell workspaceId={workspace.id} projectId={project.id} canWrite={canWriteFiles} />
       </div>
     </div>
   );
