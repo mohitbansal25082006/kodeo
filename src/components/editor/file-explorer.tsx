@@ -18,11 +18,31 @@ interface FileExplorerProps {
   onOpenFile: (node: ProjectNodeTree) => void;
   /** Bumped by the parent whenever it wants the explorer to force a refetch (e.g. after an external mutation). */
   refreshKey?: number;
+  /**
+   * Fired after a successful rename, with the node's new name/path.
+   * Added in Part 3b so the editor shell can keep an already-open
+   * tab's title and Monaco model path in sync with the tree — the
+   * explorer itself has no idea which files are open as tabs, so it
+   * just reports what changed and lets the shell decide what to do
+   * with that information.
+   */
+  onNodeRenamed?: (nodeId: string, name: string, path: string) => void;
+  /** Fired after a successful delete, so an open tab pointing at the deleted file can be closed rather than left editing a ghost. */
+  onNodeDeleted?: (nodeId: string) => void;
 }
 
 type PendingCreate = { parentId: string | null; type: "file" | "folder" } | null;
 
-export function FileExplorer({ workspaceId, projectId, canWrite, activeNodeId, onOpenFile, refreshKey }: FileExplorerProps) {
+export function FileExplorer({
+  workspaceId,
+  projectId,
+  canWrite,
+  activeNodeId,
+  onOpenFile,
+  refreshKey,
+  onNodeRenamed,
+  onNodeDeleted,
+}: FileExplorerProps) {
   const [nodes, setNodes] = React.useState<ProjectNodeSummary[] | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -69,8 +89,10 @@ export function FileExplorer({ workspaceId, projectId, canWrite, activeNodeId, o
         setDeleteLoading(false);
         return;
       }
+      const deletedId = deleteTarget.id;
       setDeleteTarget(null);
       await fetchTree();
+      onNodeDeleted?.(deletedId);
     } finally {
       setDeleteLoading(false);
     }
@@ -175,8 +197,10 @@ export function FileExplorer({ workspaceId, projectId, canWrite, activeNodeId, o
             });
             const data = await res.json();
             if (!res.ok) return { error: data.error || "Couldn't rename this item." };
+            const { id, name: newName, path: newPath } = data.node as { id: string; name: string; path: string };
             setRenameTarget(null);
             await fetchTree();
+            onNodeRenamed?.(id, newName, newPath);
             return {};
           }}
         />
