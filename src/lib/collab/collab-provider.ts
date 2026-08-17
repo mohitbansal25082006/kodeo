@@ -227,6 +227,31 @@ export class CollabProvider {
     }, delay + jitter);
   }
 
+  /**
+   * Part 4b — immediately attempts a reconnect, canceling any pending
+   * backoff timer. Wired to the reconnect banner's manual retry
+   * affordance (a person watching a slow exponential backoff count up
+   * to 15s shouldn't have to just wait it out if they know the network
+   * is back, e.g. after reconnecting Wi-Fi). Does NOT reset
+   * `reconnectAttempt` — a manual retry that also fails should still
+   * back off further, not restart the exponential curve from zero and
+   * risk hammering a genuinely-still-down server.
+   */
+  reconnectNow(): void {
+    if (this.destroyed) return;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.ws) return; // already connected or actively connecting
+    this.connect();
+  }
+
+  /** Current reconnect attempt count (0 while connected or on the very first attempt) — surfaced for UI that wants to show "attempt 3…" rather than just a generic spinner. */
+  getReconnectAttempt(): number {
+    return this.reconnectAttempt;
+  }
+
   private handleMessage(data: Uint8Array): void {
     const decoder = decoding.createDecoder(data);
     const messageType = decoding.readVarUint(decoder);
